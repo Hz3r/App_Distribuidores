@@ -1,16 +1,159 @@
-# app_distribuidores
+# App Distribuidores
 
-A new Flutter project.
+SaaS de pedidos B2B para pequeños distribuidores. El piloto es un distribuidor de licores:
+sus clientes (bodegas y licorerías) ven stock y precios mayoristas en la app, compran, y el
+distribuidor recibe una notificación y despacha (recojo o repartidor).
 
-## Getting Started
+## Estructura
 
-This project is a starting point for a Flutter application.
+```
+apps/
+  app_movil/     App Flutter (Android e iOS): rol cliente y rol repartidor
+  panel_web/     Panel Flutter Web del distribuidor (rol admin)
+packages/
+  core/          Modelos, cliente Supabase, tema y utilidades compartidas
+supabase/
+  migrations/    Esquema de BD (SQL versionado)
+  functions/     Edge Functions
+  seed.sql       Datos de prueba para local y DEV
+  tests/         Pruebas SQL (crear_pedido, RLS)
+docs/            Arquitectura, flujo de Git y contrato de datos
+env/             Entornos (los reales están ignorados por git)
+```
 
-A few resources to get you started if this is your first Flutter project:
+Documentación:
+- [Arquitectura](docs/arquitectura.md)
+- [Flujo de Git](docs/flujo-git.md)
+- [Contrato de datos (BORRADOR)](docs/contrato.md)
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## Requisitos
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+| Herramienta | Versión | Notas |
+|---|---|---|
+| Git | reciente | |
+| FVM | 4.x | Gestiona la versión de Flutter del proyecto |
+| Flutter | **3.50.0** (vía FVM) | Fijada en `.fvmrc` |
+| Dart | 3.14 (incluido con Flutter) | |
+| Supabase CLI | reciente | Solo para trabajar en local (`db:reset`) |
+| Docker | reciente | Lo necesita `supabase start` |
+| Android SDK | — | Solo para compilar APK |
+| Xcode | — | Solo para iOS. Requiere macOS. |
+| Chrome | — | Para el panel web |
+
+Instalar FVM:
+
+```bash
+dart pub global activate fvm
+```
+
+## Desde cero
+
+### 1. Clonar y fijar Flutter
+
+```bash
+git clone https://github.com/Hz3r/App_Distribuidores.git
+cd App_Distribuidores
+git checkout main
+
+fvm install 3.50.0
+fvm use 3.50.0
+```
+
+Después de `fvm use`, usa `fvm flutter` y `fvm dart`, o agrega `.fvm/flutter_sdk/bin` al PATH. VS Code ya apunta a `.fvm/flutter_sdk` (`.vscode/settings.json`).
+
+### 2. Crear tu archivo de entorno
+
+```bash
+cp env/dev.example.json env/dev.json
+```
+
+Edita `env/dev.json` y pon la URL y la **publishable key** de DEV (pídela a Jair). No pongas nunca la secret key.
+
+```json
+{
+  "SUPABASE_URL": "https://<project-ref>.supabase.co",
+  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_..."
+}
+```
+
+`env/dev.json` y `env/prod.json` están en `.gitignore`. **Nunca los subas al repo.**
+
+### 3. Instalar dependencias y generar código
+
+```bash
+dart pub global activate melos   # opcional: para usar `melos` directo
+flutter pub get                  # resuelve el workspace completo
+dart run melos run gen           # genera freezed, json_serializable y riverpod
+```
+
+### 4. Verificar
+
+```bash
+dart run melos run analyze
+dart run melos run test
+```
+
+### 5. Ejecutar
+
+```bash
+dart run melos run run:movil     # app móvil con env/dev.json
+dart run melos run run:web       # panel web en Chrome con env/dev.json
+```
+
+También puedes usar las configuraciones de VS Code: **App móvil (dev)** y **Panel web (dev)**.
+
+## Comandos de Melos
+
+| Comando | Qué hace |
+|---|---|
+| `dart run melos bootstrap` | Resuelve dependencias del workspace |
+| `dart run melos run analyze` | Analiza todos los paquetes |
+| `dart run melos run format` | Verifica formato (no modifica). Para aplicar: `dart format apps packages` |
+| `dart run melos run test` | Corre los tests de cada paquete |
+| `dart run melos run gen` | Corre build_runner en todos los paquetes |
+| `dart run melos run run:movil` | Ejecuta la app móvil (DEV) |
+| `dart run melos run run:web` | Ejecuta el panel web (DEV) |
+| `dart run melos run db:reset` | Reinicia la BD local de Supabase (`supabase db reset`) |
+
+## Supabase
+
+### Local (recomendado para probar cambios de BD)
+
+Requiere Docker y Supabase CLI.
+
+```bash
+supabase start
+dart run melos run db:reset      # aplica migraciones y seed
+```
+
+Pruebas SQL de `crear_pedido` y RLS (sobre la BD local, en transacción que se revierte):
+
+```bash
+psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/crear_pedido_test.sql
+```
+
+### Proyecto DEV
+
+- Ref: `srsrgkwkbhhpdhaeiqyt`
+- **Aún no aplicar migraciones al remoto** (`supabase db push`) sin revisión de ambos socios.
+
+```bash
+supabase login                                          # lo ejecuta cada socio
+supabase link --project-ref srsrgkwkbhhpdhaeiqyt        # pide la contraseña de la BD
+```
+
+## Firebase (pendiente)
+
+Las dependencias de FCM ya están en `apps/app_movil`, pero **no se inicializan todavía**.
+Para activarlas, cada socio debe:
+
+1. Tener acceso al proyecto de Firebase del piloto.
+2. Instalar FlutterFire CLI: `dart pub global activate flutterfire_cli`
+3. En `apps/app_movil`, ejecutar `flutterfire configure` (es interactivo; elige el proyecto).
+4. Esto genera `lib/firebase_options.dart`, que está en `.gitignore`. No lo subas.
+5. Agregar `Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform)` en `main.dart`.
+6. Configurar las claves APNs (iOS) y el archivo `google-services.json` (Android, ignorado por git).
+
+## Flujo de trabajo
+
+Ramas cortas desde `main`, Pull Request, 1 aprobación del otro socio. Ver [docs/flujo-git.md](docs/flujo-git.md).

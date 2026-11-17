@@ -1,0 +1,54 @@
+name: CI
+
+# Se ejecuta en cada PR y en cada push a main.
+# No usa claves reales: compila con env/dev.example.json (valores vacíos).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    name: Analyze, test y build web
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Instala la versión fijada en .fvmrc (una sola fuente de verdad).
+      - name: Leer versión de Flutter
+        id: fvm
+        run: echo "version=$(jq -r .flutter .fvmrc)" >> "$GITHUB_OUTPUT"
+
+      - name: Instalar Flutter ${{ steps.fvm.outputs.version }}
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ steps.fvm.outputs.version }}
+          channel: stable
+          cache: true
+
+      - name: Resolver workspace
+        run: flutter pub get
+
+      - name: Verificar formato
+        run: dart format --output=none --set-exit-if-changed apps packages
+
+      - name: Analyze
+        run: dart run melos run analyze
+
+      - name: Generar código
+        run: dart run melos run gen
+
+      - name: Tests
+        run: dart run melos run test
+
+      - name: Build web del panel (con entorno de ejemplo)
+        working-directory: apps/panel_web
+        run: flutter build web --dart-define-from-file=../../env/dev.example.json

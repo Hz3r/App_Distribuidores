@@ -1,0 +1,22 @@
+# Propietarios por área. Cada PR requiere la aprobación del dueño del área.
+# Regla: la última coincidencia gana.
+
+# Por defecto: ambos socios revisan cualquier cambio.
+*                         @Hz3r @Jair103
+
+# Monorepo y configuración compartida.
+/pubspec.yaml             @Hz3r @Jair103
+/melos.yaml               @Hz3r @Jair103
+/analysis_options.yaml    @Hz3r @Jair103
+/.github/                 @Hz3r @Jair103
+/docs/                    @Hz3r @Jair103
+
+# Paquete compartido.
+/packages/core/           @Hz3r @Jair103
+
+# App móvil: Hz3r.
+/apps/app_movil/          @Hz3r
+
+# Panel web y Supabase: Jair103.
+/apps/panel_web/          @Jair103
+/supabase/                @Jair103

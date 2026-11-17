@@ -1,0 +1,9 @@
+# Opciones globales de json_serializable para este paquete.
+# Los campos de los modelos son camelCase en Dart y snake_case en la BD/JSON.
+targets:
+  $default:
+    builders:
+      json_serializable:
+        options:
+          field_rename: snake
+          explicit_to_json: true

@@ -41,3 +41,29 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# ---- Monorepo: FVM, entornos y secretos ----
+# SDK de Flutter gestionado por FVM (la versión fijada está en .fvmrc)
+.fvm/
+# Entornos reales: NUNCA se commitean. Solo los *.example.json van al repo.
+env/*.json
+!env/*.example.json
+
+# ---- Supabase CLI (estado local) ----
+.supabase/
+
+# ---- Firebase (archivos de configuración generados por FlutterFire) ----
+google-services.json
+GoogleService-Info.plist
+firebase_options.dart
+**/android/app/google-services.json
+**/ios/Runner/GoogleService-Info.plist
+**/macos/Runner/GoogleService-Info.plist
+**/lib/firebase_options.dart
+
+# ---- Generados de Flutter/Melos ----
+.melos_tool/
+*.g.dart.bak
+
+# Artefactos de build en cualquier paquete
+**/build/

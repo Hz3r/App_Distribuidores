@@ -293,7 +293,7 @@ select pruebas.espera_error(
         where perfil_id = '00000000-0000-0000-0000-0000000000c2'
           and distribuidor_id = '00000000-0000-0000-0000-000000000d01'),
        '00000000-0000-0000-0000-000000000b03')$q$,
-  '22023', '1.32 la bodega destino no es de otro distribuidor');
+  '22023', '1.32 la bodega destino es de otro distribuidor');
 select pruebas.espera_error(
   $q$select public.cambiar_bodega_membresia(
        (select id from public.membresias

@@ -276,7 +276,7 @@ Los parámetros con valor por defecto van al final: **la app los pasa por nombre
 |---|---|
 | `42501` | Sin sesión, sin permiso, o recurso de otro distribuidor (bodega ajena) |
 | `22023` | Parámetro inválido o mal formado |
-| `23505` | Valor repetido (slug de distribuidor) |
+| `23505` | Valor repetido (slug de distribuidor). También puede salir, en vez de `P0006`, si dos pagos de suscripción del mismo distribuidor se registran en el mismo instante |
 | `P0001` | Stock insuficiente (o un ajuste que deja el físico por debajo del comprometido) |
 | `P0002` | No existe, o quien llama no puede verlo (pedido, pago, presentación, suscripción, distribuidor) |
 | `P0003` | Distribuidor que no está en `prueba` ni `activo`, o bodega inactiva en un pedido que admin o vendedor crean a su nombre (un cliente con la bodega inactiva recibe `42501`: su membresía ya no cuenta) |

@@ -46,7 +46,9 @@ create table public.contadores_pedido (
 );
 
 -- Pedido de una bodega. Nace con saldo igual al total; vence_en se fija al
--- entregar un pedido a crédito.
+-- entregar un pedido a crédito. plazo_credito_dias es una copia del plazo de
+-- la bodega al crear el pedido (solo a crédito): si después se cambia o se
+-- quita el crédito de la bodega, el vencimiento de este pedido no cambia.
 create table public.pedidos (
   id uuid primary key default gen_random_uuid(),
   distribuidor_id uuid not null references public.distribuidores (id),
@@ -63,6 +65,7 @@ create table public.pedidos (
   metodo_pago public.metodo_pago,
   estado_pago public.estado_pago not null default 'pendiente',
   saldo_pendiente_centimos bigint not null,
+  plazo_credito_dias integer,
   vence_en date,
   motivo_cancelacion text,
   clave_idempotencia uuid not null,
@@ -75,7 +78,13 @@ create table public.pedidos (
   foreign key (cliente_id, distribuidor_id)
     references public.clientes_negocio (id, distribuidor_id),
   constraint pedidos_saldo_check
-    check (0 <= saldo_pendiente_centimos and saldo_pendiente_centimos <= total_centimos)
+    check (0 <= saldo_pendiente_centimos and saldo_pendiente_centimos <= total_centimos),
+  -- El "is not null" hace falta porque un check con resultado nulo se acepta.
+  constraint pedidos_plazo_credito_check
+    check (case condicion_pago
+             when 'credito' then plazo_credito_dias is not null and plazo_credito_dias > 0
+             else plazo_credito_dias is null
+           end)
 );
 
 -- Líneas del pedido, con copia del nombre, el factor y el precio del momento
@@ -550,11 +559,13 @@ begin
   insert into public.pedidos
     (distribuidor_id, numero, cliente_id, creado_por, despacho, direccion_entrega,
      nota_cliente, total_centimos, condicion_pago, metodo_pago,
-     saldo_pendiente_centimos, clave_idempotencia)
+     saldo_pendiente_centimos, plazo_credito_dias, clave_idempotencia)
   values
     (p_distribuidor_id, v_numero, v_cliente, v_uid, p_despacho, v_bodega.direccion,
      p_nota, v_total, p_condicion_pago, p_metodo_pago,
-     v_total, p_clave_idempotencia)
+     v_total,
+     case when p_condicion_pago = 'credito' then v_bodega.plazo_credito_dias end,
+     p_clave_idempotencia)
   returning id into v_pedido;
 
   insert into public.pedido_items
@@ -643,7 +654,8 @@ revoke execute on function privado.ve_pedido(uuid, uuid, uuid) from public, anon
 --
 -- Efecto en el stock: entregar baja físico y comprometido (movimiento
 -- salida) y, si es a crédito, fija vence_en = fecha de entrega en la zona
--- horaria del distribuidor + plazo de la bodega; cancelar baja el
+-- horaria del distribuidor + plazo guardado en el pedido (no el actual de la
+-- bodega), en un solo update del pedido; cancelar baja el
 -- comprometido (movimiento liberacion) y exige nota, que se guarda en
 -- motivo_cancelacion. Cada cambio inserta un evento con la nota.
 --
@@ -674,7 +686,6 @@ declare
   v_permitido boolean;
   v_linea record;
   v_zona text;
-  v_plazo integer;
 begin
   if v_uid is null then
     raise exception 'Se requiere una sesión' using errcode = '42501';
@@ -771,20 +782,18 @@ begin
   end if;
 
   if p_estado = 'entregado' then
-    update public.pedidos set estado = p_estado, entregado_en = now()
+    -- Un solo update: un solo evento de Realtime por la entrega.
+    select d.zona_horaria into v_zona
+    from public.distribuidores d where d.id = v_pedido.distribuidor_id;
+
+    update public.pedidos
+    set estado = p_estado,
+        entregado_en = now(),
+        vence_en = case
+                     when v_pedido.condicion_pago = 'credito'
+                     then (now() at time zone v_zona)::date + v_pedido.plazo_credito_dias
+                   end
     where id = v_pedido.id;
-
-    if v_pedido.condicion_pago = 'credito' then
-      select d.zona_horaria into v_zona
-      from public.distribuidores d where d.id = v_pedido.distribuidor_id;
-      select c.plazo_credito_dias into v_plazo
-      from public.clientes_negocio c
-      where c.id = v_pedido.cliente_id and c.distribuidor_id = v_pedido.distribuidor_id;
-
-      update public.pedidos
-      set vence_en = (now() at time zone v_zona)::date + v_plazo
-      where id = v_pedido.id;
-    end if;
   elsif p_estado = 'cancelado' then
     update public.pedidos set estado = p_estado, motivo_cancelacion = p_nota
     where id = v_pedido.id;

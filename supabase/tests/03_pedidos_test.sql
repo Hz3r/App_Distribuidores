@@ -723,6 +723,33 @@ select pruebas.afirma(
    from public.pedidos where id = :'p60'),
   '3.60 vence_en es hoy en America/Lima más 15 días');
 
+-- 3.64: el vencimiento usa el plazo guardado en el pedido, aunque la bodega
+-- ya no tenga crédito al entregarlo.
+select pruebas.como(:'c2');
+select public.crear_pedido(:'d1', :'pr1x1', gen_random_uuid(),
+                           p_condicion_pago => 'credito') as p64 \gset
+select pruebas.como_servicio();
+select limite_credito_centimos as limite_0b02, plazo_credito_dias as plazo_0b02
+from public.clientes_negocio where id = '00000000-0000-0000-0000-000000000b02' \gset
+update public.clientes_negocio
+set credito_habilitado = false, limite_credito_centimos = null, plazo_credito_dias = null
+where id = '00000000-0000-0000-0000-000000000b02';
+select pruebas.como(:'a1');
+select public.cambiar_estado_pedido(:'p64', 'confirmado');
+select public.cambiar_estado_pedido(:'p64', 'listo_recojo');
+select public.cambiar_estado_pedido(:'p64', 'entregado');
+select pruebas.afirma(
+  (select estado = 'entregado' and plazo_credito_dias = 15
+          and vence_en = (now() at time zone 'America/Lima')::date + 15
+   from public.pedidos where id = :'p64'),
+  '3.64 sin crédito en la bodega, vence_en es hoy en America/Lima más 15 días');
+-- Se restaura el crédito de 0b02 para los casos siguientes.
+select pruebas.como_servicio();
+update public.clientes_negocio
+set credito_habilitado = true, limite_credito_centimos = :'limite_0b02',
+    plazo_credito_dias = :'plazo_0b02'
+where id = '00000000-0000-0000-0000-000000000b02';
+
 -- 3.61: C1 ve el perfil de R1 solo mientras R1 reparte un pedido suyo.
 select pruebas.como(:'c1');
 select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p61 \gset

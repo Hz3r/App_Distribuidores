@@ -2,7 +2,7 @@
 # Ejecuta las pruebas SQL contra un Postgres local.
 # Uso: bash supabase/tests/run.sh [N]
 #   N: aplica solo las primeras N migraciones (orden de nombre) y las pruebas
-#      con prefijo NN <= N. Sin N: todas, más supabase/seed.sql.
+#      con prefijo NN <= N. Sin N: todas y, al final, supabase/seed.sql.
 # Usa PGHOST, PGPORT, PGUSER y PGPASSWORD del entorno.
 set -euo pipefail
 
@@ -38,11 +38,6 @@ for m in "$SUPABASE"/migrations/*.sql; do
   "${PSQL[@]}" -f "$m" >/dev/null
 done
 
-if [ "$CON_SEED" = 1 ]; then
-  echo "== seed"
-  "${PSQL[@]}" -f "$SUPABASE/seed.sql" >/dev/null
-fi
-
 # Un solo glob: .sql y .sh se ejecutan intercalados por orden de nombre (NN).
 for t in "$AQUI"/[0-9][0-9]_*_test.@(sql|sh); do
   nombre="$(basename "$t")"
@@ -54,5 +49,12 @@ for t in "$AQUI"/[0-9][0-9]_*_test.@(sql|sh); do
     *.sh) bash "$t" ;;
   esac
 done
+
+# El seed va al final: las pruebas corren en transacciones que se revierten y
+# asumen una BD sin datos (sus planes y cuentas chocarían con los del seed).
+if [ "$CON_SEED" = 1 ]; then
+  echo "== seed"
+  "${PSQL[@]}" -f "$SUPABASE/seed.sql" >/dev/null
+fi
 
 echo "TODO OK"

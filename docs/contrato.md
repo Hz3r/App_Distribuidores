@@ -635,7 +635,8 @@ dart run melos run db:test       # lo mismo que la primera línea
 ```
 
 Usa `PGHOST`, `PGPORT`, `PGUSER` (def. `postgres`) y `PGPASSWORD` del entorno. Crea y borra la
-base `distribuidores_test` (y `distribuidores_test_concurrencia` para la prueba de concurrencia).
+base `distribuidores_test` (y `distribuidores_test_concurrencia` y
+`distribuidores_test_concurrencia_pagos` para las pruebas de concurrencia).
 Termina con `TODO OK`. En CI corre en el job `sql` de `.github/workflows/ci.yml`.
 
 | Archivo | Cubre |
@@ -646,6 +647,7 @@ Termina con `TODO OK`. En CI corre en el job `sql` de `.github/workflows/ci.yml`
 | `03_pedidos_test.sql` | `crear_pedido`, precio, crédito, idempotencia, estados, repartidor |
 | `03_concurrencia_test.sh` | Dos pedidos simultáneos por el mismo stock; reintento simultáneo; permiso perdido mientras se espera el bloqueo de la bodega |
 | `04_cobros_test.sql` | Pagos, anulación, cancelación con pagos |
+| `04_concurrencia_pagos_test.sh` | Dos pagos simultáneos por el saldo completo; pago y cancelación simultáneos, en los dos órdenes |
 | `05_plataforma_test.sql` | Planes, suscripciones, alta y estado de distribuidores |
 | `06_ajustes_test.sql` | Catálogo visible para cliente y repartidor; `execute` de `public.rls_auto_enable()` si existe |
 | `06_seguridad_test.sql` | Barrido: RLS, grants, `search_path`, políticas, montos `bigint` |

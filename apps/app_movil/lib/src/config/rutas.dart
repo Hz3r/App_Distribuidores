@@ -1,6 +1,8 @@
 /// Rutas de la app móvil. Única fuente de verdad para go_router.
 abstract final class AppRutas {
   static const String auth = '/auth';
+  static const String cargando = '/cargando';
+  static const String errorAcceso = '/error-acceso';
   static const String sinRol = '/sin-rol';
   static const String seleccionDistribuidor = '/seleccion-distribuidor';
   static const String catalogo = '/catalogo';

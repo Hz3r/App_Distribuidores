@@ -12,19 +12,18 @@ import '../features/perfil/presentation/perfil_screen.dart';
 import '../features/pedidos/presentation/pedidos_screen.dart';
 import '../features/repartidor/presentation/repartidor_screen.dart';
 import '../features/seleccion_distribuidor/presentation/seleccion_distribuidor_screen.dart';
+import '../features/sesion/domain/acceso.dart';
+import '../shared/widgets/pantalla_placeholder.dart';
 import '../shared/widgets/sin_rol_screen.dart';
 import 'destino.dart';
 import 'refresh_stream.dart';
 
 part 'app_router.g.dart';
 
-/// Rol leído de `app_metadata` (solo lo escribe el servidor, nunca el cliente).
-/// TODO(contrato): confirmar con Jair cómo se asigna el rol (hook de Auth o tabla usuarios).
-RolUsuario? _rolDe(Session? sesion) {
-  final valor = sesion?.user.appMetadata['rol'];
-  if (valor is! String) return null;
-  return RolUsuario.values.asNameMap()[valor];
-}
+/// Acceso provisional calculado solo con la sesión.
+/// TODO(tarea 3): reemplazar por el provider que lee las membresías.
+Acceso _accesoProvisional(Session? sesion) =>
+    sesion == null ? const SinSesion() : const Cargando();
 
 @riverpod
 GoRouter appRouter(Ref ref) {
@@ -32,15 +31,28 @@ GoRouter appRouter(Ref ref) {
     initialLocation: AppRutas.auth,
     refreshListenable: RefrescoDesdeStream(supabase.auth.onAuthStateChange),
     redirect: (context, state) {
-      final sesion = supabase.auth.currentSession;
       return destinoRedireccion(
-        haySesion: sesion != null,
-        rol: _rolDe(sesion),
+        acceso: _accesoProvisional(supabase.auth.currentSession),
         ubicacion: state.matchedLocation,
       );
     },
     routes: [
       GoRoute(path: AppRutas.auth, builder: (_, _) => const AuthScreen()),
+      // Provisionales: la tarea 3 las reemplaza por sus pantallas reales.
+      GoRoute(
+        path: AppRutas.cargando,
+        builder: (_, _) => const PantallaPlaceholder(
+          titulo: 'Cargando',
+          descripcion: 'Leyendo tus accesos…',
+        ),
+      ),
+      GoRoute(
+        path: AppRutas.errorAcceso,
+        builder: (_, _) => const PantallaPlaceholder(
+          titulo: 'Error',
+          descripcion: 'No se pudieron leer tus accesos.',
+        ),
+      ),
       GoRoute(path: AppRutas.sinRol, builder: (_, _) => const SinRolScreen()),
       GoRoute(
         path: AppRutas.seleccionDistribuidor,

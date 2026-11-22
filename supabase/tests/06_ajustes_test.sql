@@ -116,4 +116,82 @@ select pruebas.afirma(
   end,
   '7.7 anon y authenticated no ejecutan public.rls_auto_enable() (si existe)');
 
+-- 7.8 y 7.9: con la categoría 0ca1 inactiva, crear_pedido rechaza PR1 con
+-- P0002, tanto a la bodega como al personal. El stock de P1 no cambia.
+select pruebas.como_servicio();
+update public.categorias set activo = false
+where id = '00000000-0000-0000-0000-000000000ca1';
+select stock_comprometido as comprometido_p1
+from public.productos where id = '00000000-0000-0000-0000-000000000101' \gset
+
+select pruebas.como(:'c2');
+select pruebas.espera_error(
+  $q$select public.crear_pedido(
+       '00000000-0000-0000-0000-000000000d01',
+       '[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 2}]',
+       '00000000-0000-0000-0000-00000000ab01',
+       p_despacho => 'recojo', p_condicion_pago => 'contado')$q$,
+  'P0002', '7.8 C2 no puede pedir PR1 con su categoría inactiva');
+select pruebas.como_servicio();
+select pruebas.afirma(
+  (select stock_comprometido from public.productos
+   where id = '00000000-0000-0000-0000-000000000101') = :comprometido_p1
+  and pruebas.cuenta('select 1 from public.pedidos') = 0,
+  '7.8 sin pedido y con el comprometido de P1 sin cambios');
+
+select pruebas.como(:'v1');
+select pruebas.espera_error(
+  $q$select public.crear_pedido(
+       '00000000-0000-0000-0000-000000000d01',
+       '[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 2}]',
+       '00000000-0000-0000-0000-00000000ab02',
+       p_despacho => 'recojo', p_condicion_pago => 'contado',
+       p_cliente_id => '00000000-0000-0000-0000-000000000b02')$q$,
+  'P0002', '7.9 V1 tampoco puede pedir PR1 a nombre de 0b02 con la categoría inactiva');
+select pruebas.como_servicio();
+select pruebas.afirma(
+  (select stock_comprometido from public.productos
+   where id = '00000000-0000-0000-0000-000000000101') = :comprometido_p1
+  and pruebas.cuenta('select 1 from public.pedidos') = 0,
+  '7.9 sin pedido y con el comprometido de P1 sin cambios');
+
+-- 7.10: con la categoría reactivada, el mismo pedido de C2 se crea.
+update public.categorias set activo = true
+where id = '00000000-0000-0000-0000-000000000ca1';
+
+select pruebas.como(:'c2');
+select public.crear_pedido(
+  '00000000-0000-0000-0000-000000000d01',
+  '[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 2}]',
+  '00000000-0000-0000-0000-00000000ab01',
+  p_despacho => 'recojo', p_condicion_pago => 'contado') as pedido_710 \gset
+select pruebas.como_servicio();
+select pruebas.afirma(
+  (select cliente_id = '00000000-0000-0000-0000-000000000b02' and estado = 'recibido'
+   from public.pedidos where id = :'pedido_710')
+  and (select stock_comprometido from public.productos
+       where id = '00000000-0000-0000-0000-000000000101') = :comprometido_p1 + 2,
+  '7.10 con la categoría reactivada C2 crea el pedido y se comprometen 2 de P1');
+
+-- 7.11: la bodega no ve el precio de lista de una presentación cuyo producto
+-- está inactivo (PR4, de P2); el admin sí.
+insert into public.precios_lista
+  (distribuidor_id, lista_precios_id, presentacion_id, precio_centimos)
+values
+  (:'d1', '00000000-0000-0000-0000-000000000301',
+   '00000000-0000-0000-0000-000000000204', 2900);
+
+select pruebas.como(:'c2');
+select pruebas.afirma(
+  pruebas.cuenta($q$select 1 from public.precios_lista
+                    where presentacion_id = '00000000-0000-0000-0000-000000000204'$q$) = 0
+  and pruebas.cuenta($q$select 1 from public.precios_lista
+                        where presentacion_id = '00000000-0000-0000-0000-000000000201'$q$) = 1,
+  '7.11 C2 no ve el precio de lista de PR4 (sí el de PR1)');
+select pruebas.como(:'a1');
+select pruebas.afirma(
+  pruebas.cuenta($q$select 1 from public.precios_lista
+                    where presentacion_id = '00000000-0000-0000-0000-000000000204'$q$) = 1,
+  '7.11 A1 ve el precio de lista de PR4');
+
 rollback;

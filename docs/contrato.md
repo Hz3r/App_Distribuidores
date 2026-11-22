@@ -42,7 +42,7 @@ Migraciones, en orden (cada una pasa sus pruebas sin las siguientes):
 | 3 | `supabase/migrations/20261122120000_pedidos.sql` | Pedidos, líneas, eventos, crédito de la bodega, Realtime |
 | 4 | `supabase/migrations/20261122130000_cobros.sql` | Pagos de pedidos |
 | 5 | `supabase/migrations/20261122140000_plataforma.sql` | Planes, suscripciones, alta de distribuidores |
-| 6 | `supabase/migrations/20261122150000_ajustes_post_revision.sql` | Ajustes tras la revisión: catálogo visible para cliente y repartidor, `execute` de `public.rls_auto_enable()` |
+| 6 | `supabase/migrations/20261122150000_ajustes_post_revision.sql` | Ajustes tras la revisión: catálogo visible para cliente y repartidor, `crear_pedido` rechaza categorías inactivas, `execute` de `public.rls_auto_enable()` |
 
 ### Tipos (enums)
 
@@ -132,9 +132,9 @@ Reglas de stock:
   - `presentaciones`: activas y de un producto visible según la regla anterior.
   - `precios_volumen` y `precios_lista`: solo los de presentaciones visibles; de `precios_lista`,
     además, solo los de la lista activa de su bodega (el repartidor no ve ninguno).
-  - Admin, vendedor y Super Admin ven todo, activo o no. Desactivar una categoría o un producto
-    oculta en cascada sus presentaciones y precios a las bodegas, y `crear_pedido` los rechaza
-    con `P0002`.
+  - Admin, vendedor y Super Admin ven todo, activo o no. Desactivar un producto o una categoría
+    oculta sus presentaciones y precios a las bodegas, y `crear_pedido` los rechaza con `P0002`
+    (también al admin y al vendedor; la regla de la categoría, desde la migración 6).
 
 **Imágenes (Storage):** bucket `catalogo`, de lectura pública por URL, con rutas
 `<distribuidor_id>/...`. Solo el admin de ese distribuidor sube, reemplaza, borra (y lista) dentro
@@ -404,7 +404,8 @@ Los mensajes están en español y pueden cambiar; la app decide por el código, 
   `null`, admin o vendedor sin `p_cliente_id`, ítems que no son un arreglo no vacío de
   `{presentacion_id, cantidad}`, cantidad no entera, ≤ 0 o mayor al máximo de `integer`, más de
   200 presentaciones distintas;
-  `P0002` presentación inexistente, inactiva (o su producto) o de otro distribuidor; `P0001` stock
+  `P0002` presentación inexistente, inactiva (o su producto, o la categoría de su producto;
+  un producto sin categoría vale) o de otro distribuidor; `P0001` stock
   insuficiente (el mensaje nombra el producto); `P0003` distribuidor fuera de `prueba`/`activo` o
   bodega inactiva en un pedido a su nombre (admin o vendedor); `P0004` crédito no habilitado, límite excedido o deuda vencida.
 - Notas:
@@ -649,7 +650,7 @@ Termina con `TODO OK`. En CI corre en el job `sql` de `.github/workflows/ci.yml`
 | `04_cobros_test.sql` | Pagos, anulación, cancelación con pagos |
 | `04_concurrencia_pagos_test.sh` | Dos pagos simultáneos por el saldo completo; pago y cancelación simultáneos, en los dos órdenes |
 | `05_plataforma_test.sql` | Planes, suscripciones, alta y estado de distribuidores |
-| `06_ajustes_test.sql` | Catálogo visible para cliente y repartidor; `execute` de `public.rls_auto_enable()` si existe |
+| `06_ajustes_test.sql` | Catálogo visible para cliente y repartidor; `crear_pedido` con la categoría inactiva; `execute` de `public.rls_auto_enable()` si existe |
 | `06_seguridad_test.sql` | Barrido: RLS, grants, `search_path`, políticas, montos `bigint` |
 
 ---

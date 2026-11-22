@@ -615,11 +615,16 @@ Se guarda en `distribuidores.config_tema` (jsonb):
 en cada distribuidor, y la BD valida contra la tabla `membresias`, no contra el token.
 
 Tras iniciar sesión, la app:
-1. Lee `membresias` (la política devuelve las suyas) con su distribuidor, y se queda con las de
-   `estado = 'activa'`.
+1. Lee `membresias` con su distribuidor **filtrando por `perfil_id = auth.uid()`**, y se queda
+   con las de `estado = 'activa'`. El filtro es obligatorio: la política `membresias_select`
+   también devuelve todas las membresías de los distribuidores donde la persona es `admin` o
+   `vendedor` (y todas a un super admin). Sin el filtro, el panel podría tomar como propia la
+   membresía de otra persona.
 2. Si hay varias, la persona elige el distribuidor; la app lo guarda como distribuidor activo.
 3. Redirige según el rol de esa membresía (`cliente`, `repartidor`, o `admin`/`vendedor` en el
-   panel). Sin membresías, ofrece canjear un código (`canjear_invitacion`).
+   panel). Sin membresías útiles, la app móvil muestra una pantalla sin acceso (con reintentar y
+   cerrar sesión), **sin opción de canje**: el canje de un código (`canjear_invitacion`) está
+   pendiente de construir en la app.
 
 Una membresía de cliente cuya bodega está inactiva sigue en `estado = 'activa'` en `membresias`,
 pero **no cuenta**: el distribuidor, el catálogo y los pedidos dejan de ser visibles y
@@ -632,11 +637,14 @@ Estado de cada app:
   `select('*, distribuidor:distribuidores(*), cliente_negocio:clientes_negocio(*)')` filtrando por
   `perfil_id`, y se queda con las **membresías útiles**: `estado = 'activa'`, rol `cliente` o
   `repartidor` (`admin` y `vendedor` usan el panel) y distribuidor visible. Ninguna → pantalla
-  "Sin distribuidor"; una → entra directo; varias → elige en `seleccion-distribuidor`. La
-  preferencia se guarda en **`user_metadata.distribuidor_activo`** (`auth.updateUser`) y se usa si
-  sigue entre las útiles. Es solo una preferencia: la BD valida la membresía en cada consulta.
-  Mientras lee muestra una pantalla de espera; si falla, una de error con reintentar y cerrar
-  sesión. Cliente → catálogo; repartidor → su zona.
+  "Sin acceso en la app" (reintentar y cerrar sesión); una → entra directo; varias → elige en
+  `seleccion-distribuidor`. La preferencia se guarda en **`user_metadata.distribuidor_activo`**
+  (`auth.updateUser`) y se usa si sigue entre las útiles. Es solo una preferencia: la BD valida la
+  membresía en cada consulta. Mientras lee muestra una pantalla de espera; si falla, una de error
+  con reintentar y cerrar sesión. Cliente → catálogo; repartidor → su zona.
+- **`user_metadata.distribuidor_activo` es la preferencia de la app móvil.** El panel debe usar
+  su propia clave (por ejemplo `distribuidor_activo_panel`): una persona puede ser `admin` en un
+  distribuidor y `cliente` en otro, y cada app elige entre membresías distintas.
 - **`panel_web`: pendiente de migrar.** Todavía lee `app_metadata.rol` (con `RolUsuario`). La
   migración la hace su dueño (Jair103).
 

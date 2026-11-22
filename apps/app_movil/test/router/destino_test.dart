@@ -1,107 +1,197 @@
 import 'package:app_movil/src/config/rutas.dart';
+import 'package:app_movil/src/features/sesion/domain/acceso.dart';
 import 'package:app_movil/src/router/destino.dart';
 import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// Constructor auxiliar: membresía activa con su distribuidor embebido.
+Membresia membresia(String distribuidorId, RolMembresia rol) {
+  return Membresia(
+    id: 'm-$distribuidorId-${rol.name}',
+    perfilId: 'p1',
+    distribuidorId: distribuidorId,
+    rol: rol,
+    estado: EstadoMembresia.activa,
+    creadoEn: DateTime.utc(2026),
+    distribuidor: Distribuidor(
+      id: distribuidorId,
+      nombre: 'Distribuidor $distribuidorId',
+      slug: distribuidorId,
+      estado: EstadoDistribuidor.activo,
+      moneda: 'PEN',
+      zonaHoraria: 'America/Lima',
+      configTema: const ConfigTema(),
+      creadoEn: DateTime.utc(2026),
+    ),
+  );
+}
+
+/// Todas las rutas de [AppRutas].
+const todasLasRutas = [
+  AppRutas.auth,
+  AppRutas.cargando,
+  AppRutas.errorAcceso,
+  AppRutas.sinRol,
+  AppRutas.seleccionDistribuidor,
+  AppRutas.catalogo,
+  AppRutas.carrito,
+  AppRutas.checkout,
+  AppRutas.pedidos,
+  AppRutas.perfil,
+  AppRutas.repartidor,
+];
+
 void main() {
-  group('destinoRedireccion', () {
-    test('sin sesión manda a auth desde cualquier ruta protegida', () {
+  final cliente = membresia('d1', RolMembresia.cliente);
+  final repartidor = membresia('d2', RolMembresia.repartidor);
+
+  /// Una sola membresía, ya activa.
+  ConAcceso soloCon(Membresia m) => ConAcceso(membresias: [m], activa: m);
+
+  /// Dos membresías, con [activa] elegida.
+  ConAcceso dosCon(Membresia activa) =>
+      ConAcceso(membresias: [cliente, repartidor], activa: activa);
+
+  String? destino(Acceso acceso, String ubicacion) =>
+      destinoRedireccion(acceso: acceso, ubicacion: ubicacion);
+
+  group('destinoRedireccion, una prueba por regla', () {
+    test('sin sesión manda a auth, salvo que ya esté ahí', () {
+      expect(destino(const SinSesion(), AppRutas.catalogo), AppRutas.auth);
+      expect(destino(const SinSesion(), AppRutas.auth), isNull);
+    });
+
+    test('cargando manda a cargando, salvo que ya esté ahí', () {
+      expect(destino(const Cargando(), AppRutas.auth), AppRutas.cargando);
+      expect(destino(const Cargando(), AppRutas.cargando), isNull);
+    });
+
+    test('error manda a errorAcceso, salvo que ya esté ahí', () {
+      const error = ErrorAcceso('sin red');
+      expect(destino(error, AppRutas.catalogo), AppRutas.errorAcceso);
+      expect(destino(error, AppRutas.errorAcceso), isNull);
+    });
+
+    test('con acceso y sin membresías manda a sinRol, salvo que ya esté', () {
+      const vacio = ConAcceso(membresias: [], activa: null);
+      expect(destino(vacio, AppRutas.catalogo), AppRutas.sinRol);
+      expect(destino(vacio, AppRutas.sinRol), isNull);
+    });
+
+    test('sin activa manda a seleccionDistribuidor, salvo que ya esté', () {
+      final sinElegir = ConAcceso(
+        membresias: [cliente, repartidor],
+        activa: null,
+      );
       expect(
-        destinoRedireccion(
-          haySesion: false,
-          rol: null,
-          ubicacion: AppRutas.catalogo,
-        ),
+        destino(sinElegir, AppRutas.catalogo),
+        AppRutas.seleccionDistribuidor,
+      );
+      expect(destino(sinElegir, AppRutas.seleccionDistribuidor), isNull);
+    });
+
+    test('con activa, desde auth, cargando, errorAcceso o sinRol va al '
+        'inicio del rol', () {
+      for (final ubicacion in [
         AppRutas.auth,
-      );
-    });
-
-    test('sin sesión en auth no redirige (evita bucles)', () {
-      expect(
-        destinoRedireccion(
-          haySesion: false,
-          rol: null,
-          ubicacion: AppRutas.auth,
-        ),
-        isNull,
-      );
-    });
-
-    test('con sesión y sin rol manda a sin-rol', () {
-      expect(
-        destinoRedireccion(
-          haySesion: true,
-          rol: null,
-          ubicacion: AppRutas.catalogo,
-        ),
+        AppRutas.cargando,
+        AppRutas.errorAcceso,
         AppRutas.sinRol,
-      );
+      ]) {
+        expect(
+          destino(soloCon(cliente), ubicacion),
+          AppRutas.catalogo,
+          reason: 'cliente en $ubicacion',
+        );
+        expect(
+          destino(soloCon(repartidor), ubicacion),
+          AppRutas.repartidor,
+          reason: 'repartidor en $ubicacion',
+        );
+      }
     });
 
-    test('cliente que entra a auth va al catálogo', () {
+    test(
+      'seleccionDistribuidor con una sola membresía va al inicio del rol',
+      () {
+        expect(
+          destino(soloCon(cliente), AppRutas.seleccionDistribuidor),
+          AppRutas.catalogo,
+        );
+        expect(
+          destino(soloCon(repartidor), AppRutas.seleccionDistribuidor),
+          AppRutas.repartidor,
+        );
+      },
+    );
+
+    test('repartidor fuera de su zona va a repartidor, salvo perfil', () {
       expect(
-        destinoRedireccion(
-          haySesion: true,
-          rol: RolUsuario.cliente,
-          ubicacion: AppRutas.auth,
-        ),
-        AppRutas.catalogo,
+        destino(soloCon(repartidor), AppRutas.pedidos),
+        AppRutas.repartidor,
       );
+      expect(destino(soloCon(repartidor), AppRutas.perfil), isNull);
     });
 
-    test('repartidor que entra a auth va a su zona', () {
+    test('cliente dentro de la zona de repartidor va a catálogo', () {
+      expect(destino(soloCon(cliente), AppRutas.repartidor), AppRutas.catalogo);
+    });
+
+    test('cualquier otro caso no redirige', () {
+      expect(destino(soloCon(cliente), AppRutas.pedidos), isNull);
+      expect(destino(soloCon(repartidor), AppRutas.repartidor), isNull);
+    });
+  });
+
+  group('destinoRedireccion, casos puntuales', () {
+    test('repartidor en perfil no redirige', () {
+      expect(destino(soloCon(repartidor), AppRutas.perfil), isNull);
+    });
+
+    test('repartidor en catálogo va a repartidor', () {
       expect(
-        destinoRedireccion(
-          haySesion: true,
-          rol: RolUsuario.repartidor,
-          ubicacion: AppRutas.auth,
-        ),
+        destino(soloCon(repartidor), AppRutas.catalogo),
         AppRutas.repartidor,
       );
     });
 
-    test('cliente no puede entrar a la zona de repartidor', () {
-      expect(
-        destinoRedireccion(
-          haySesion: true,
-          rol: RolUsuario.cliente,
-          ubicacion: AppRutas.repartidor,
-        ),
-        AppRutas.catalogo,
-      );
+    test('cliente en repartidor va a catálogo', () {
+      expect(destino(soloCon(cliente), AppRutas.repartidor), AppRutas.catalogo);
     });
 
-    test('repartidor fuera de su zona es enviado a su zona', () {
+    test('con dos membresías y activa elegida, seleccionDistribuidor se '
+        'permite', () {
+      expect(destino(dosCon(cliente), AppRutas.seleccionDistribuidor), isNull);
       expect(
-        destinoRedireccion(
-          haySesion: true,
-          rol: RolUsuario.repartidor,
-          ubicacion: AppRutas.catalogo,
-        ),
-        AppRutas.repartidor,
-      );
-    });
-
-    test('repartidor puede ver su perfil fuera de su zona', () {
-      expect(
-        destinoRedireccion(
-          haySesion: true,
-          rol: RolUsuario.repartidor,
-          ubicacion: AppRutas.perfil,
-        ),
+        destino(dosCon(repartidor), AppRutas.seleccionDistribuidor),
         isNull,
       );
     });
+  });
 
-    test('cliente en una ruta válida no se redirige', () {
-      expect(
-        destinoRedireccion(
-          haySesion: true,
-          rol: RolUsuario.cliente,
-          ubicacion: AppRutas.pedidos,
-        ),
-        isNull,
-      );
-    });
+  test('ninguna combinación produce un bucle: el destino es estable', () {
+    final accesos = <Acceso>[
+      const SinSesion(),
+      const Cargando(),
+      const ErrorAcceso('fallo'),
+      const ConAcceso(membresias: [], activa: null),
+      ConAcceso(membresias: [cliente, repartidor], activa: null),
+      soloCon(cliente),
+      soloCon(repartidor),
+      dosCon(cliente),
+      dosCon(repartidor),
+    ];
+
+    for (final acceso in accesos) {
+      for (final ubicacion in todasLasRutas) {
+        final primero = destino(acceso, ubicacion);
+        if (primero == null) continue;
+        expect(
+          destino(acceso, primero),
+          isNull,
+          reason: '$acceso en $ubicacion → $primero no es estable',
+        );
+      }
+    }
   });
 }

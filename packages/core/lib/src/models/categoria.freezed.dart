@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Categoria {
 
- String get id; String get distribuidorId; String get nombre; int get orden;
+ String get id; String get distribuidorId; String get nombre; int get orden; bool get activo; DateTime get creadoEn;
 /// Create a copy of Categoria
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -30,20 +30,20 @@ $CategoriaCopyWith<Categoria> get copyWith => _$CategoriaCopyWithImpl<Categoria>
 @override
 bool operator ==(Object other) {
   final _this = this as Categoria;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Categoria&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.distribuidorId, _this.distribuidorId) || other.distribuidorId == _this.distribuidorId)&&(identical(other.nombre, _this.nombre) || other.nombre == _this.nombre)&&(identical(other.orden, _this.orden) || other.orden == _this.orden));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Categoria&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.distribuidorId, _this.distribuidorId) || other.distribuidorId == _this.distribuidorId)&&(identical(other.nombre, _this.nombre) || other.nombre == _this.nombre)&&(identical(other.orden, _this.orden) || other.orden == _this.orden)&&(identical(other.activo, _this.activo) || other.activo == _this.activo)&&(identical(other.creadoEn, _this.creadoEn) || other.creadoEn == _this.creadoEn));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as Categoria;
-  return Object.hash(runtimeType,_this.id,_this.distribuidorId,_this.nombre,_this.orden);
+  return Object.hash(runtimeType,_this.id,_this.distribuidorId,_this.nombre,_this.orden,_this.activo,_this.creadoEn);
 }
 
 @override
 String toString() {
   final _this = this as Categoria;
-  return 'Categoria(id: ${_this.id}, distribuidorId: ${_this.distribuidorId}, nombre: ${_this.nombre}, orden: ${_this.orden})';
+  return 'Categoria(id: ${_this.id}, distribuidorId: ${_this.distribuidorId}, nombre: ${_this.nombre}, orden: ${_this.orden}, activo: ${_this.activo}, creadoEn: ${_this.creadoEn})';
 }
 
 
@@ -54,7 +54,7 @@ abstract mixin class $CategoriaCopyWith<$Res>  {
   factory $CategoriaCopyWith(Categoria value, $Res Function(Categoria) _then) = _$CategoriaCopyWithImpl;
 @useResult
 $Res call({
- String id, String distribuidorId, String nombre, int orden
+ String id, String distribuidorId, String nombre, int orden, bool activo, DateTime creadoEn
 });
 
 
@@ -71,13 +71,15 @@ class _$CategoriaCopyWithImpl<$Res>
 
 /// Create a copy of Categoria
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? distribuidorId = null,Object? nombre = null,Object? orden = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? distribuidorId = null,Object? nombre = null,Object? orden = null,Object? activo = null,Object? creadoEn = null,}) {
   return _then(Categoria(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,distribuidorId: null == distribuidorId ? _self.distribuidorId : distribuidorId // ignore: cast_nullable_to_non_nullable
 as String,nombre: null == nombre ? _self.nombre : nombre // ignore: cast_nullable_to_non_nullable
 as String,orden: null == orden ? _self.orden : orden // ignore: cast_nullable_to_non_nullable
-as int,
+as int,activo: null == activo ? _self.activo : activo // ignore: cast_nullable_to_non_nullable
+as bool,creadoEn: null == creadoEn ? _self.creadoEn : creadoEn // ignore: cast_nullable_to_non_nullable
+as DateTime,
   ));
 }
 
@@ -162,10 +164,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String distribuidorId,  String nombre,  int orden)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String distribuidorId,  String nombre,  int orden,  bool activo,  DateTime creadoEn)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Categoria() when $default != null:
-return $default(_that.id,_that.distribuidorId,_that.nombre,_that.orden);case _:
+return $default(_that.id,_that.distribuidorId,_that.nombre,_that.orden,_that.activo,_that.creadoEn);case _:
   return orElse();
 
 }
@@ -183,10 +185,10 @@ return $default(_that.id,_that.distribuidorId,_that.nombre,_that.orden);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String distribuidorId,  String nombre,  int orden)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String distribuidorId,  String nombre,  int orden,  bool activo,  DateTime creadoEn)  $default,) {final _that = this;
 switch (_that) {
 case _Categoria():
-return $default(_that.id,_that.distribuidorId,_that.nombre,_that.orden);case _:
+return $default(_that.id,_that.distribuidorId,_that.nombre,_that.orden,_that.activo,_that.creadoEn);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -203,10 +205,10 @@ return $default(_that.id,_that.distribuidorId,_that.nombre,_that.orden);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String distribuidorId,  String nombre,  int orden)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String distribuidorId,  String nombre,  int orden,  bool activo,  DateTime creadoEn)?  $default,) {final _that = this;
 switch (_that) {
 case _Categoria() when $default != null:
-return $default(_that.id,_that.distribuidorId,_that.nombre,_that.orden);case _:
+return $default(_that.id,_that.distribuidorId,_that.nombre,_that.orden,_that.activo,_that.creadoEn);case _:
   return null;
 
 }
@@ -218,13 +220,15 @@ return $default(_that.id,_that.distribuidorId,_that.nombre,_that.orden);case _:
 @JsonSerializable()
 
 class _Categoria implements Categoria {
-  const _Categoria({required this.id, required this.distribuidorId, required this.nombre, this.orden = 0});
+  const _Categoria({required this.id, required this.distribuidorId, required this.nombre, required this.orden, required this.activo, required this.creadoEn});
   factory _Categoria.fromJson(Map<String, dynamic> json) => _$CategoriaFromJson(json);
 
 @override final  String id;
 @override final  String distribuidorId;
 @override final  String nombre;
-@override@JsonKey() final  int orden;
+@override final  int orden;
+@override final  bool activo;
+@override final  DateTime creadoEn;
 
 /// Create a copy of Categoria
 /// with the given fields replaced by the non-null parameter values.
@@ -239,18 +243,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Categoria&&(identical(other.id, id) || other.id == id)&&(identical(other.distribuidorId, distribuidorId) || other.distribuidorId == distribuidorId)&&(identical(other.nombre, nombre) || other.nombre == nombre)&&(identical(other.orden, orden) || other.orden == orden));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Categoria&&(identical(other.id, id) || other.id == id)&&(identical(other.distribuidorId, distribuidorId) || other.distribuidorId == distribuidorId)&&(identical(other.nombre, nombre) || other.nombre == nombre)&&(identical(other.orden, orden) || other.orden == orden)&&(identical(other.activo, activo) || other.activo == activo)&&(identical(other.creadoEn, creadoEn) || other.creadoEn == creadoEn));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hash(runtimeType,id,distribuidorId,nombre,orden);
+    return Object.hash(runtimeType,id,distribuidorId,nombre,orden,activo,creadoEn);
 }
 
 @override
 String toString() {
-    return 'Categoria(id: $id, distribuidorId: $distribuidorId, nombre: $nombre, orden: $orden)';
+    return 'Categoria(id: $id, distribuidorId: $distribuidorId, nombre: $nombre, orden: $orden, activo: $activo, creadoEn: $creadoEn)';
 }
 
 
@@ -261,7 +265,7 @@ abstract mixin class _$CategoriaCopyWith<$Res> implements $CategoriaCopyWith<$Re
   factory _$CategoriaCopyWith(_Categoria value, $Res Function(_Categoria) _then) = __$CategoriaCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String distribuidorId, String nombre, int orden
+ String id, String distribuidorId, String nombre, int orden, bool activo, DateTime creadoEn
 });
 
 
@@ -278,13 +282,15 @@ class __$CategoriaCopyWithImpl<$Res>
 
 /// Create a copy of Categoria
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? distribuidorId = null,Object? nombre = null,Object? orden = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? distribuidorId = null,Object? nombre = null,Object? orden = null,Object? activo = null,Object? creadoEn = null,}) {
   return _then(_Categoria(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,distribuidorId: null == distribuidorId ? _self.distribuidorId : distribuidorId // ignore: cast_nullable_to_non_nullable
 as String,nombre: null == nombre ? _self.nombre : nombre // ignore: cast_nullable_to_non_nullable
 as String,orden: null == orden ? _self.orden : orden // ignore: cast_nullable_to_non_nullable
-as int,
+as int,activo: null == activo ? _self.activo : activo // ignore: cast_nullable_to_non_nullable
+as bool,creadoEn: null == creadoEn ? _self.creadoEn : creadoEn // ignore: cast_nullable_to_non_nullable
+as DateTime,
   ));
 }
 

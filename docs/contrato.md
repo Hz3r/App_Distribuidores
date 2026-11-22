@@ -542,18 +542,52 @@ Otros estados:
 
 ## 5. Modelos (Dart, `packages/core`)
 
-> **DESACTUALIZADA: pendiente del plan de `packages/core`.** Los modelos actuales describen el
-> esquema borrador, que ya no existe. No codificar contra ellos; usar las tablas de la sección 2.
-> El cambio afecta a las dos apps: se hace en un plan aparte, avisando a ambos socios.
+Todos son `freezed` + `json_serializable`, con campos en camelCase en Dart y JSON en `snake_case`
+(`packages/core/build.yaml`). Cada modelo lleva todas las columnas de su tabla de la sección 2. El
+dinero es `int` en céntimos. `toJson()` no es un payload de escritura: las escrituras pasan por las
+funciones de la sección 3 o mandan solo las columnas que cambian.
 
-Todos serán `freezed` con JSON en `snake_case`. Lista del plan de `packages/core`:
-
-| Acción | Modelos |
+| Modelo | Tabla |
 |---|---|
-| Crear | `Perfil`, `Membresia`, `Invitacion`, `ListaPrecios`, `PrecioLista`, `MovimientoStock`, `PedidoEvento`, `Pago`, `Plan`, `Suscripcion`, `PagoSuscripcion` |
-| Cambiar | `Distribuidor` (slug, rubro, documento, teléfono, estado, moneda, zona horaria), `ClienteNegocio` (sin `usuarioId`; documento, referencia, teléfono, activo, lista y crédito), `Categoria` (activo), `Producto` (marca, sku, unidad base, stock físico y comprometido; `categoriaId` opcional), `Presentacion` (distribuidorId, factor, orden, activo; sin `tipo`, `stock` ni `unidadesPorPresentacion`), `PrecioVolumen` (distribuidorId), `Pedido` (número, creadoPor, repartidorId, despacho, dirección, nota, condición, método y estado de pago, saldo, plazo, vence, motivo, clave de idempotencia, entregadoEn), `PedidoItem` (distribuidorId, productoId, nombres, factor, subtotal), `enums.dart` (enums de la sección 2) |
-| Eliminar | `Usuario`; enums `RolUsuario` y `TipoPresentacion` |
-| Sin cambio | `ConfigTema` |
+| `Perfil` | `perfiles` |
+| `Distribuidor` | `distribuidores` (`nombreVisible`: el nombre del tema si está, si no el legal) |
+| `ConfigTema` | JSON `config_tema` de `distribuidores` (sección 6) |
+| `Membresia` | `membresias` |
+| `Invitacion` | `invitaciones` |
+| `ClienteNegocio` | `clientes_negocio` |
+| `ListaPrecios` | `listas_precios` |
+| `PrecioLista` | `precios_lista` |
+| `Categoria` | `categorias` |
+| `Producto` | `productos` |
+| `Presentacion` | `presentaciones` |
+| `PrecioVolumen` | `precios_volumen` |
+| `MovimientoStock` | `movimientos_stock` |
+| `Pedido` | `pedidos` |
+| `PedidoItem` | `pedido_items` |
+| `PedidoEvento` | `pedido_eventos` |
+| `Pago` | `pagos` |
+| `Plan` | `planes` |
+| `Suscripcion` | `suscripciones` |
+| `PagoSuscripcion` | `pagos_suscripcion` |
+
+Enums (`enums.dart`, con `@JsonValue` del valor de la BD): `EstadoPedido`, `RolMembresia`,
+`EstadoMembresia`, `EstadoDistribuidor`, `TipoMovimientoStock`, `DespachoPedido`,
+`CondicionPago`, `MetodoPago`, `EstadoPago`, `EstadoSuscripcion`.
+
+`RolUsuario` queda en `enums.dart` **solo para `apps/panel_web`**, hasta que el panel migre a
+`RolMembresia` (sección 7). No usarlo en código nuevo. Se eliminaron `Usuario` y `TipoPresentacion`.
+
+### Relaciones embebidas
+
+Las relaciones son campos opcionales: solo vienen llenas si la consulta las embebe con el alias
+del nombre del campo en `snake_case`.
+
+| Modelo | Campos | `select` |
+|---|---|---|
+| `Membresia` | `distribuidor`, `clienteNegocio` | `'*, distribuidor:distribuidores(*), cliente_negocio:clientes_negocio(*)'` |
+| `Pedido` | `items`, `eventos` | `'*, items:pedido_items(*), eventos:pedido_eventos(*)'` |
+| `Producto` | `presentaciones` (con sus `preciosVolumen`) | `'*, presentaciones(*, precios_volumen(*))'` |
+| `Presentacion` | `preciosVolumen` | `'*, precios_volumen(*)'` |
 
 ---
 
@@ -581,19 +615,38 @@ Se guarda en `distribuidores.config_tema` (jsonb):
 en cada distribuidor, y la BD valida contra la tabla `membresias`, no contra el token.
 
 Tras iniciar sesión, la app:
-1. Lee `membresias` (la política devuelve las suyas) con su distribuidor, y se queda con las de
-   `estado = 'activa'`.
+1. Lee `membresias` con su distribuidor **filtrando por `perfil_id = auth.uid()`**, y se queda
+   con las de `estado = 'activa'`. El filtro es obligatorio: la política `membresias_select`
+   también devuelve todas las membresías de los distribuidores donde la persona es `admin` o
+   `vendedor` (y todas a un super admin). Sin el filtro, el panel podría tomar como propia la
+   membresía de otra persona.
 2. Si hay varias, la persona elige el distribuidor; la app lo guarda como distribuidor activo.
 3. Redirige según el rol de esa membresía (`cliente`, `repartidor`, o `admin`/`vendedor` en el
-   panel). Sin membresías, ofrece canjear un código (`canjear_invitacion`).
+   panel). Sin membresías útiles, la app móvil muestra una pantalla sin acceso (con reintentar y
+   cerrar sesión), **sin opción de canje**: el canje de un código (`canjear_invitacion`) está
+   pendiente de construir en la app.
 
 Una membresía de cliente cuya bodega está inactiva sigue en `estado = 'activa'` en `membresias`,
 pero **no cuenta**: el distribuidor, el catálogo y los pedidos dejan de ser visibles y
 `crear_pedido` lanza `42501`. La app debe tratar un `42501` (o una lectura vacía del distribuidor)
 en catálogo o pedidos como "sin acceso a este distribuidor", no como un error genérico.
 
-El cambio en cada router lo hace el dueño de cada app (`app_movil`: Hz3r; `panel_web`: Jair103),
-en el plan de `packages/core`. Hoy los routers todavía leen `app_metadata.rol`.
+Estado de cada app:
+
+- **`app_movil`: ya lo implementa.** Lee las membresías de la persona con
+  `select('*, distribuidor:distribuidores(*), cliente_negocio:clientes_negocio(*)')` filtrando por
+  `perfil_id`, y se queda con las **membresías útiles**: `estado = 'activa'`, rol `cliente` o
+  `repartidor` (`admin` y `vendedor` usan el panel) y distribuidor visible. Ninguna → pantalla
+  "Sin acceso en la app" (reintentar y cerrar sesión); una → entra directo; varias → elige en
+  `seleccion-distribuidor`. La preferencia se guarda en **`user_metadata.distribuidor_activo`**
+  (`auth.updateUser`) y se usa si sigue entre las útiles. Es solo una preferencia: la BD valida la
+  membresía en cada consulta. Mientras lee muestra una pantalla de espera; si falla, una de error
+  con reintentar y cerrar sesión. Cliente → catálogo; repartidor → su zona.
+- **`user_metadata.distribuidor_activo` es la preferencia de la app móvil.** El panel debe usar
+  su propia clave (por ejemplo `distribuidor_activo_panel`): una persona puede ser `admin` en un
+  distribuidor y `cliente` en otro, y cada app elige entre membresías distintas.
+- **`panel_web`: pendiente de migrar.** Todavía lee `app_metadata.rol` (con `RolUsuario`). La
+  migración la hace su dueño (Jair103).
 
 ---
 

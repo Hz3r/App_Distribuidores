@@ -53,3 +53,7 @@ melos:
     db:reset:
       run: supabase db reset
       description: Reinicia la base local de Supabase (requiere Supabase CLI y Docker).
+
+    db:test:
+      run: bash supabase/tests/run.sh
+      description: Corre las pruebas SQL contra un Postgres local (requiere psql y PGHOST/PGPORT/PGUSER).

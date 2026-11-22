@@ -17,7 +17,8 @@ select public.crear_pedido(
   '00000000-0000-0000-0000-000000000d01',
   '[{"presentacion_id": "00000000-0000-0000-0000-000000000202", "cantidad": 2},
     {"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 6}]',
-  '00000000-0000-0000-0000-00000000aa01') as pedido_31 \gset
+  '00000000-0000-0000-0000-00000000aa01',
+  p_despacho => 'recojo', p_condicion_pago => 'contado') as pedido_31 \gset
 
 select pruebas.afirma(
   (select numero = 1 and estado = 'recibido' and total_centimos = 121200
@@ -61,7 +62,8 @@ select pruebas.afirma(
     '00000000-0000-0000-0000-000000000d01',
     '[{"presentacion_id": "00000000-0000-0000-0000-000000000202", "cantidad": 2},
       {"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 6}]',
-    '00000000-0000-0000-0000-00000000aa01') = :'pedido_31'
+    '00000000-0000-0000-0000-00000000aa01',
+    p_despacho => 'recojo', p_condicion_pago => 'contado') = :'pedido_31'
   and pruebas.cuenta('select 1 from public.pedidos') = 1
   and (select stock_comprometido from public.productos
        where id = '00000000-0000-0000-0000-000000000101') = 30,
@@ -72,7 +74,8 @@ select pruebas.espera_error(
   $q$select public.crear_pedido(
        '00000000-0000-0000-0000-000000000d01',
        '[{"presentacion_id": "00000000-0000-0000-0000-000000000202", "cantidad": 8}]',
-       '00000000-0000-0000-0000-00000000aa02')$q$,
+       '00000000-0000-0000-0000-00000000aa02',
+       p_despacho => 'recojo', p_condicion_pago => 'contado')$q$,
   'P0001', '3.3 sin stock suficiente no se crea el pedido');
 select pruebas.afirma(
   pruebas.cuenta('select 1 from public.pedidos') = 1
@@ -85,7 +88,8 @@ select public.crear_pedido(
   '00000000-0000-0000-0000-000000000d01',
   '[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 6},
     {"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 6}]',
-  '00000000-0000-0000-0000-00000000aa03') as pedido_34 \gset
+  '00000000-0000-0000-0000-00000000aa03',
+  p_despacho => 'recojo', p_condicion_pago => 'contado') as pedido_34 \gset
 select pruebas.afirma(
   (select numero = 2 and total_centimos = 46800 from public.pedidos where id = :'pedido_34')
   and pruebas.cuenta(format($q$select 1 from public.pedido_items where pedido_id = %L$q$, :'pedido_34')) = 1
@@ -96,19 +100,24 @@ select pruebas.afirma(
 
 -- 3.5 a 3.7: forma de p_items.
 select pruebas.espera_error(
-  $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01', '[]', gen_random_uuid())$q$,
+  $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01', '[]', gen_random_uuid(),
+                                p_despacho => 'recojo', p_condicion_pago => 'contado')$q$,
   '22023', '3.5 lista de ítems vacía');
 select pruebas.espera_error(
-  $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01', '{}', gen_random_uuid())$q$,
+  $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01', '{}', gen_random_uuid(),
+                                p_despacho => 'recojo', p_condicion_pago => 'contado')$q$,
   '22023', '3.5 ítems como objeto');
 select pruebas.espera_error(
-  $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01', null, gen_random_uuid())$q$,
+  $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01', null, gen_random_uuid(),
+                                p_despacho => 'recojo', p_condicion_pago => 'contado')$q$,
   '22023', '3.5 ítems nulos');
 select pruebas.espera_error(
-  $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01', 'null', gen_random_uuid())$q$,
+  $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01', 'null', gen_random_uuid(),
+                                p_despacho => 'recojo', p_condicion_pago => 'contado')$q$,
   '22023', '3.5 ítems null de JSON');
 select pruebas.espera_error(
-  $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01', '"x"', gen_random_uuid())$q$,
+  $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01', '"x"', gen_random_uuid(),
+                                p_despacho => 'recojo', p_condicion_pago => 'contado')$q$,
   '22023', '3.5 ítems como texto');
 
 do $$
@@ -119,37 +128,43 @@ begin
     perform pruebas.espera_error(
       format($q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01',
                   '[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": %s}]',
-                  gen_random_uuid())$q$, v_cantidad),
+                  gen_random_uuid(),
+                  p_despacho => 'recojo', p_condicion_pago => 'contado')$q$, v_cantidad),
       '22023', '3.6 cantidad ' || v_cantidad);
   end loop;
 end $$;
 
 select pruebas.espera_error(
   $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01',
-       '[{"presentacion_id": "no-es-uuid", "cantidad": 1}]', gen_random_uuid())$q$,
+       '[{"presentacion_id": "no-es-uuid", "cantidad": 1}]', gen_random_uuid(),
+       p_despacho => 'recojo', p_condicion_pago => 'contado')$q$,
   '22023', '3.7 presentacion_id que no es uuid');
 select pruebas.espera_error(
   $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01',
-       '[{"cantidad": 1}]', gen_random_uuid())$q$,
+       '[{"cantidad": 1}]', gen_random_uuid(),
+       p_despacho => 'recojo', p_condicion_pago => 'contado')$q$,
   '22023', '3.7 ítem sin presentacion_id');
 
 -- 3.8 y 3.9: presentaciones que no se pueden pedir.
 select pruebas.espera_error(
   $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01',
        '[{"presentacion_id": "00000000-0000-0000-0000-000000000203", "cantidad": 1}]',
-       '00000000-0000-0000-0000-00000000aa04')$q$,
+       '00000000-0000-0000-0000-00000000aa04',
+       p_despacho => 'recojo', p_condicion_pago => 'contado')$q$,
   'P0002', '3.8 presentación de otro distribuidor');
 select pruebas.espera_error(
   $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01',
        '[{"presentacion_id": "00000000-0000-0000-0000-000000000204", "cantidad": 1}]',
-       '00000000-0000-0000-0000-00000000aa05')$q$,
+       '00000000-0000-0000-0000-00000000aa05',
+       p_despacho => 'recojo', p_condicion_pago => 'contado')$q$,
   'P0002', '3.9 presentación activa de un producto inactivo');
 
 -- 3.10: el mismo cliente pide en D2; el correlativo es por distribuidor.
 select public.crear_pedido(
   '00000000-0000-0000-0000-000000000d02',
   '[{"presentacion_id": "00000000-0000-0000-0000-000000000203", "cantidad": 5}]',
-  '00000000-0000-0000-0000-00000000aa06') as pedido_310 \gset
+  '00000000-0000-0000-0000-00000000aa06',
+  p_despacho => 'recojo', p_condicion_pago => 'contado') as pedido_310 \gset
 select pruebas.afirma(
   (select numero = 1 and cliente_id = '00000000-0000-0000-0000-000000000b03'
           and distribuidor_id = '00000000-0000-0000-0000-000000000d02'
@@ -164,6 +179,7 @@ select pruebas.espera_error(
   $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01',
        '[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 1}]',
        '00000000-0000-0000-0000-00000000aa07',
+       p_despacho => 'recojo', p_condicion_pago => 'contado',
        p_cliente_id => '00000000-0000-0000-0000-000000000b01')$q$,
   '42501', '3.11 un cliente no pide a nombre de otra bodega');
 
@@ -172,6 +188,7 @@ select public.crear_pedido(
   '00000000-0000-0000-0000-000000000d01',
   '[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 1}]',
   '00000000-0000-0000-0000-00000000aa08',
+  p_despacho => 'recojo', p_condicion_pago => 'contado',
   p_cliente_id => '00000000-0000-0000-0000-000000000b02') as pedido_312 \gset
 select pruebas.afirma(
   (select cliente_id = '00000000-0000-0000-0000-000000000b02'
@@ -183,12 +200,14 @@ select pruebas.afirma(
 select pruebas.espera_error(
   $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01',
        '[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 1}]',
-       '00000000-0000-0000-0000-00000000aa09')$q$,
+       '00000000-0000-0000-0000-00000000aa09',
+       p_despacho => 'recojo', p_condicion_pago => 'contado')$q$,
   '22023', '3.13 el vendedor debe indicar la bodega');
 select pruebas.espera_error(
   $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01',
        '[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 1}]',
        '00000000-0000-0000-0000-00000000aa10',
+       p_despacho => 'recojo', p_condicion_pago => 'contado',
        p_cliente_id => '00000000-0000-0000-0000-000000000b03')$q$,
   '42501', '3.14 el vendedor no pide para una bodega de otro distribuidor');
 
@@ -197,6 +216,7 @@ select pruebas.espera_error(
   $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01',
        '[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 1}]',
        '00000000-0000-0000-0000-00000000aa11',
+       p_despacho => 'recojo', p_condicion_pago => 'contado',
        p_cliente_id => '00000000-0000-0000-0000-000000000b01')$q$,
   '42501', '3.15 el repartidor no crea pedidos');
 
@@ -204,13 +224,15 @@ select pruebas.como('00000000-0000-0000-0000-000000000091');
 select pruebas.espera_error(
   $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01',
        '[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 1}]',
-       '00000000-0000-0000-0000-00000000aa12')$q$,
+       '00000000-0000-0000-0000-00000000aa12',
+       p_despacho => 'recojo', p_condicion_pago => 'contado')$q$,
   '42501', '3.16 sin membresía no se pide');
 select pruebas.como_anon();
 select pruebas.espera_error(
   $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01',
        '[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 1}]',
-       '00000000-0000-0000-0000-00000000aa12')$q$,
+       '00000000-0000-0000-0000-00000000aa12',
+       p_despacho => 'recojo', p_condicion_pago => 'contado')$q$,
   '42501', '3.16 anon no pide');
 
 -- 3.17 a 3.22: reglas de crédito.
@@ -218,14 +240,16 @@ select pruebas.como('00000000-0000-0000-0000-0000000000c1');
 select pruebas.espera_error(
   $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01',
        '[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 1}]',
-       '00000000-0000-0000-0000-00000000aa13', p_condicion_pago => 'credito')$q$,
+       '00000000-0000-0000-0000-00000000aa13',
+       p_despacho => 'recojo', p_condicion_pago => 'credito')$q$,
   'P0004', '3.17 sin crédito habilitado no se pide a crédito');
 
 select pruebas.como('00000000-0000-0000-0000-0000000000c2');
 select public.crear_pedido(
   '00000000-0000-0000-0000-000000000d01',
   '[{"presentacion_id": "00000000-0000-0000-0000-000000000202", "cantidad": 2}]',
-  '00000000-0000-0000-0000-00000000aa14', p_condicion_pago => 'credito') as pedido_318 \gset
+  '00000000-0000-0000-0000-00000000aa14',
+  p_despacho => 'recojo', p_condicion_pago => 'credito') as pedido_318 \gset
 select pruebas.afirma(
   (select total_centimos = 96000 and saldo_pendiente_centimos = 96000
           and condicion_pago = 'credito' and vence_en is null
@@ -235,7 +259,8 @@ select pruebas.afirma(
 select public.crear_pedido(
   '00000000-0000-0000-0000-000000000d01',
   '[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 1}]',
-  '00000000-0000-0000-0000-00000000aa15', p_condicion_pago => 'credito') as pedido_319 \gset
+  '00000000-0000-0000-0000-00000000aa15',
+  p_despacho => 'recojo', p_condicion_pago => 'credito') as pedido_319 \gset
 select pruebas.afirma(
   (select total_centimos = 4000 and condicion_pago = 'credito'
    from public.pedidos where id = :'pedido_319'),
@@ -244,7 +269,8 @@ select pruebas.afirma(
 select pruebas.espera_error(
   $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01',
        '[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 1}]',
-       '00000000-0000-0000-0000-00000000aa16', p_condicion_pago => 'credito')$q$,
+       '00000000-0000-0000-0000-00000000aa16',
+       p_despacho => 'recojo', p_condicion_pago => 'credito')$q$,
   'P0004', '3.20 un pedido que excede el límite se rechaza');
 
 -- "Hoy" se mide en la zona del distribuidor (America/Lima): se usa esa fecha
@@ -258,14 +284,16 @@ select pruebas.como('00000000-0000-0000-0000-0000000000c2');
 select pruebas.espera_error(
   $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01',
        '[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 1}]',
-       '00000000-0000-0000-0000-00000000aa17', p_condicion_pago => 'credito')$q$,
+       '00000000-0000-0000-0000-00000000aa17',
+       p_despacho => 'recojo', p_condicion_pago => 'credito')$q$,
   'P0004', '3.21 con deuda vencida no se pide a crédito');
 
 select pruebas.afirma(
   public.crear_pedido(
     '00000000-0000-0000-0000-000000000d01',
     '[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 1}]',
-    '00000000-0000-0000-0000-00000000aa17') is not null,
+    '00000000-0000-0000-0000-00000000aa17',
+    p_despacho => 'recojo', p_condicion_pago => 'contado') is not null,
   '3.22 con deuda vencida sí se pide de contado');
 
 -- Se quita el vencimiento para que los casos siguientes no arrastren deuda
@@ -308,7 +336,8 @@ select pruebas.como('00000000-0000-0000-0000-0000000000c1');
 select pruebas.espera_error(
   $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01',
        '[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 1}]',
-       '00000000-0000-0000-0000-00000000aa18')$q$,
+       '00000000-0000-0000-0000-00000000aa18',
+       p_despacho => 'recojo', p_condicion_pago => 'contado')$q$,
   'P0003', '3.23 un distribuidor suspendido no recibe pedidos');
 select pruebas.afirma(
   pruebas.cuenta($q$select 1 from public.pedidos
@@ -325,7 +354,8 @@ select pruebas.como('00000000-0000-0000-0000-0000000000c1');
 select pruebas.espera_error(
   $q$select public.crear_pedido('00000000-0000-0000-0000-000000000d01',
        '[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 1}]',
-       '00000000-0000-0000-0000-00000000aa19')$q$,
+       '00000000-0000-0000-0000-00000000aa19',
+       p_despacho => 'recojo', p_condicion_pago => 'contado')$q$,
   '42501', '3.24 la bodega inactiva no pide');
 select pruebas.afirma(
   pruebas.cuenta('select 1 from public.productos') = 1
@@ -480,7 +510,8 @@ select privado.aplicar_movimiento_stock(:'p1', 'ingreso', 300, 0, null, 'stock p
 
 -- 3.40: recibido → confirmado.
 select pruebas.como(:'c1');
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p40 \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'reparto', p_condicion_pago => 'contado') as p40 \gset
 select pruebas.como(:'a1');
 select public.cambiar_estado_pedido(:'p40', 'confirmado');
 select pruebas.afirma(
@@ -495,7 +526,8 @@ select pruebas.afirma(
 
 -- 3.41: desde recibido no se salta a entregado ni a en_camino.
 select pruebas.como(:'c1');
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p41 \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'reparto', p_condicion_pago => 'contado') as p41 \gset
 select pruebas.como(:'a1');
 select pruebas.espera_error(
   format($q$select public.cambiar_estado_pedido(%L, 'entregado')$q$, :'p41'),
@@ -506,7 +538,8 @@ select pruebas.espera_error(
 
 -- 3.42: un pedido de recojo no sale en camino.
 select pruebas.como(:'c1');
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid()) as p42 \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'recojo', p_condicion_pago => 'contado') as p42 \gset
 select pruebas.como(:'a1');
 select public.cambiar_estado_pedido(:'p42', 'confirmado');
 select pruebas.espera_error(
@@ -515,7 +548,8 @@ select pruebas.espera_error(
 
 -- 3.43: un pedido de reparto no queda listo para recojo.
 select pruebas.como(:'c1');
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p43 \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'reparto', p_condicion_pago => 'contado') as p43 \gset
 select pruebas.como(:'a1');
 select public.cambiar_estado_pedido(:'p43', 'confirmado');
 select pruebas.espera_error(
@@ -524,7 +558,8 @@ select pruebas.espera_error(
 
 -- 3.44: entregar baja el físico y el comprometido.
 select pruebas.como(:'c1');
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid()) as p44 \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'recojo', p_condicion_pago => 'contado') as p44 \gset
 select pruebas.como(:'a1');
 select public.cambiar_estado_pedido(:'p44', 'confirmado');
 select public.cambiar_estado_pedido(:'p44', 'listo_recojo');
@@ -553,7 +588,8 @@ select pruebas.afirma(
 
 -- 3.45: entregado es final.
 select pruebas.como(:'c1');
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid()) as p45 \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'recojo', p_condicion_pago => 'contado') as p45 \gset
 select pruebas.como(:'a1');
 select public.cambiar_estado_pedido(:'p45', 'confirmado');
 select public.cambiar_estado_pedido(:'p45', 'listo_recojo');
@@ -567,7 +603,8 @@ select pruebas.espera_error(
 
 -- 3.46: cancelar exige nota.
 select pruebas.como(:'c1');
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p46 \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'reparto', p_condicion_pago => 'contado') as p46 \gset
 select pruebas.como(:'a1');
 select public.cambiar_estado_pedido(:'p46', 'confirmado');
 select pruebas.espera_error(
@@ -579,7 +616,8 @@ select pruebas.espera_error(
 
 -- 3.47: cancelar libera el comprometido.
 select pruebas.como(:'c1');
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p47 \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'reparto', p_condicion_pago => 'contado') as p47 \gset
 select pruebas.como(:'a1');
 select public.cambiar_estado_pedido(:'p47', 'confirmado');
 select pruebas.como_servicio();
@@ -609,7 +647,8 @@ select pruebas.afirma(
 
 -- 3.48: el cliente cancela su pedido recibido.
 select pruebas.como(:'c1');
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p48 \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'reparto', p_condicion_pago => 'contado') as p48 \gset
 select public.cambiar_estado_pedido(:'p48', 'cancelado', 'me equivoqué');
 select pruebas.afirma(
   (select estado = 'cancelado' and motivo_cancelacion = 'me equivoqué'
@@ -617,7 +656,8 @@ select pruebas.afirma(
   '3.48 el cliente cancela su pedido recibido');
 
 -- 3.49: el cliente no cancela un pedido ya confirmado.
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p49 \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'reparto', p_condicion_pago => 'contado') as p49 \gset
 select pruebas.como(:'a1');
 select public.cambiar_estado_pedido(:'p49', 'confirmado');
 select pruebas.como(:'c1');
@@ -626,7 +666,8 @@ select pruebas.espera_error(
   '42501', '3.49 el cliente no cancela un pedido confirmado');
 
 -- 3.50: otra bodega no toca el pedido.
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p50 \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'reparto', p_condicion_pago => 'contado') as p50 \gset
 select pruebas.como(:'c2');
 select pruebas.espera_error(
   format($q$select public.cambiar_estado_pedido(%L, 'cancelado', 'ajeno')$q$, :'p50'),
@@ -634,13 +675,15 @@ select pruebas.espera_error(
 
 -- 3.51: el cliente no confirma su propio pedido.
 select pruebas.como(:'c1');
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p51 \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'reparto', p_condicion_pago => 'contado') as p51 \gset
 select pruebas.espera_error(
   format($q$select public.cambiar_estado_pedido(%L, 'confirmado')$q$, :'p51'),
   '42501', '3.51 el cliente no confirma su pedido');
 
 -- 3.52: asignar repartidor.
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p52 \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'reparto', p_condicion_pago => 'contado') as p52 \gset
 select pruebas.como(:'a1');
 select public.asignar_repartidor(:'p52', :'r1');
 select pruebas.afirma(
@@ -657,7 +700,8 @@ select pruebas.afirma(
 
 -- 3.53: el repartidor no ve ni mueve pedidos que no tiene asignados.
 select pruebas.como(:'c1');
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p53 \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'reparto', p_condicion_pago => 'contado') as p53 \gset
 select pruebas.como(:'a1');
 select public.cambiar_estado_pedido(:'p53', 'confirmado');
 select pruebas.como(:'r1');
@@ -674,7 +718,8 @@ select pruebas.espera_error(
 
 -- 3.56: solo se asigna repartidor a pedidos de reparto.
 select pruebas.como(:'c1');
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid()) as p56 \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'recojo', p_condicion_pago => 'contado') as p56 \gset
 select pruebas.como(:'a1');
 select pruebas.espera_error(
   format($q$select public.asignar_repartidor(%L, '00000000-0000-0000-0000-0000000000e1')$q$, :'p56'),
@@ -682,7 +727,8 @@ select pruebas.espera_error(
 
 -- 3.57: el asignado debe ser repartidor activo del distribuidor.
 select pruebas.como(:'c1');
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p57 \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'reparto', p_condicion_pago => 'contado') as p57 \gset
 select pruebas.como(:'a1');
 select pruebas.espera_error(
   format($q$select public.asignar_repartidor(%L, '00000000-0000-0000-0000-0000000000b1')$q$, :'p57'),
@@ -713,7 +759,7 @@ select pruebas.espera_error(
 -- 3.60: entregar un pedido a crédito fija el vencimiento.
 select pruebas.como(:'c2');
 select public.crear_pedido(:'d1', :'pr1x1', gen_random_uuid(),
-                           p_condicion_pago => 'credito') as p60 \gset
+                           p_despacho => 'recojo', p_condicion_pago => 'credito') as p60 \gset
 select pruebas.como(:'a1');
 select public.cambiar_estado_pedido(:'p60', 'confirmado');
 select public.cambiar_estado_pedido(:'p60', 'listo_recojo');
@@ -727,7 +773,7 @@ select pruebas.afirma(
 -- ya no tenga crédito al entregarlo.
 select pruebas.como(:'c2');
 select public.crear_pedido(:'d1', :'pr1x1', gen_random_uuid(),
-                           p_condicion_pago => 'credito') as p64 \gset
+                           p_despacho => 'recojo', p_condicion_pago => 'credito') as p64 \gset
 select pruebas.como_servicio();
 select limite_credito_centimos as limite_0b02, plazo_credito_dias as plazo_0b02
 from public.clientes_negocio where id = '00000000-0000-0000-0000-000000000b02' \gset
@@ -752,7 +798,8 @@ where id = '00000000-0000-0000-0000-000000000b02';
 
 -- 3.61: C1 ve el perfil de R1 solo mientras R1 reparte un pedido suyo.
 select pruebas.como(:'c1');
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p61 \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'reparto', p_condicion_pago => 'contado') as p61 \gset
 select pruebas.afirma(
   pruebas.cuenta($q$select 1 from public.perfiles
                     where id = '00000000-0000-0000-0000-0000000000e1'$q$) = 0,
@@ -773,7 +820,8 @@ select pruebas.afirma(
   '3.61 al desasignar C1 deja de ver el perfil de R1');
 
 -- 3.54: el repartidor asignado sale en camino y entrega.
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p54 \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'reparto', p_condicion_pago => 'contado') as p54 \gset
 select pruebas.como(:'a1');
 select public.cambiar_estado_pedido(:'p54', 'confirmado');
 select public.asignar_repartidor(:'p54', :'r1');
@@ -793,7 +841,8 @@ select pruebas.afirma(
 
 -- 3.55: el repartidor no confirma ni cancela.
 select pruebas.como(:'c1');
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p55 \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'reparto', p_condicion_pago => 'contado') as p55 \gset
 select pruebas.como(:'a1');
 select public.asignar_repartidor(:'p55', :'r1');
 select pruebas.como(:'r1');
@@ -814,7 +863,8 @@ select pruebas.afirma(
 
 -- 3.63: el vendedor también confirma y asigna; anon no llama las funciones.
 select pruebas.como(:'c1');
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p63 \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'reparto', p_condicion_pago => 'contado') as p63 \gset
 select pruebas.como(:'v1');
 select public.cambiar_estado_pedido(:'p63', 'confirmado');
 select public.asignar_repartidor(:'p63', :'r1');
@@ -829,6 +879,54 @@ select pruebas.espera_error(
 select pruebas.espera_error(
   format($q$select public.asignar_repartidor(%L, null)$q$, :'p63'),
   '42501', '3.63 anon no asigna repartidor');
+select pruebas.como_servicio();
+
+-- 3.65: p_despacho y p_condicion_pago son obligatorios: sin ellos no hay
+-- función que llamar (la app no crea un recojo de contado por olvido).
+select pruebas.como(:'c1');
+select pruebas.espera_error(
+  format($q$select public.crear_pedido(%L, %L, gen_random_uuid())$q$, :'d1', :'pr1x1'),
+  '42883', '3.65 sin despacho ni condición de pago no se crea el pedido');
+select pruebas.espera_error(
+  format($q$select public.crear_pedido(%L, %L, gen_random_uuid(), p_despacho => 'reparto')$q$,
+         :'d1', :'pr1x1'),
+  '42883', '3.65 sin condición de pago no se crea el pedido');
+select pruebas.espera_error(
+  format($q$select public.crear_pedido(%L, %L, gen_random_uuid(), p_condicion_pago => 'contado')$q$,
+         :'d1', :'pr1x1'),
+  '42883', '3.65 sin despacho no se crea el pedido');
+select pruebas.como_servicio();
+
+-- 3.66: un pedido de total 0 nace pagado (saldo 0). La presentación a precio
+-- 0 se crea como servicio.
+insert into public.presentaciones
+  (id, distribuidor_id, producto_id, nombre, factor, precio_base_centimos)
+values ('00000000-0000-0000-0000-000000000205', :'d1', :'p1', 'Muestra', 1, 0);
+select pruebas.como(:'c1');
+select public.crear_pedido(
+  :'d1', '[{"presentacion_id": "00000000-0000-0000-0000-000000000205", "cantidad": 2}]',
+  gen_random_uuid(), p_despacho => 'recojo', p_condicion_pago => 'contado') as p66 \gset
+select pruebas.afirma(
+  (select total_centimos = 0 and saldo_pendiente_centimos = 0 and estado_pago = 'pagado'
+   from public.pedidos where id = :'p66'),
+  '3.66 un pedido de total 0 nace con estado_pago pagado y saldo 0');
+
+-- 3.67: a lo sumo 200 presentaciones distintas por pedido. Con 200 pasa el
+-- tope y falla después (presentaciones inexistentes); con 201, el tope.
+select pruebas.espera_error(
+  format($q$select public.crear_pedido(%L, %L, gen_random_uuid(),
+                                       p_despacho => 'recojo', p_condicion_pago => 'contado')$q$,
+         :'d1',
+         (select jsonb_agg(jsonb_build_object('presentacion_id', gen_random_uuid(), 'cantidad', 1))
+          from generate_series(1, 200))),
+  'P0002', '3.67 200 presentaciones distintas no chocan con el tope');
+select pruebas.espera_error(
+  format($q$select public.crear_pedido(%L, %L, gen_random_uuid(),
+                                       p_despacho => 'recojo', p_condicion_pago => 'contado')$q$,
+         :'d1',
+         (select jsonb_agg(jsonb_build_object('presentacion_id', gen_random_uuid(), 'cantidad', 1))
+          from generate_series(1, 201))),
+  '22023', '3.67 más de 200 presentaciones distintas se rechazan');
 select pruebas.como_servicio();
 
 rollback;

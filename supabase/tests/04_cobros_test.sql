@@ -30,7 +30,8 @@ select privado.aplicar_movimiento_stock(:'p1', 'ingreso', 300, 0, null, 'stock p
 
 -- Ped.
 select pruebas.como(:'c1');
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as ped \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'reparto', p_condicion_pago => 'contado') as ped \gset
 select pruebas.como(:'a1');
 select public.cambiar_estado_pedido(:'ped', 'confirmado');
 select public.asignar_repartidor(:'ped', :'r1');
@@ -71,7 +72,8 @@ select pruebas.espera_error(
 
 -- 4.4: montos inválidos sobre un pedido nuevo (Otro, total 42000).
 select pruebas.como(:'c1');
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as otro \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'reparto', p_condicion_pago => 'contado') as otro \gset
 select pruebas.como(:'a1');
 select pruebas.espera_error(
          format($q$select public.registrar_pago(%L, %s, 'efectivo')$q$, :'otro', m.monto),
@@ -231,10 +233,11 @@ select pruebas.espera_error('select 1 from public.pagos', '42501', '4.16 anon no
 -- 4.17: pagar un pedido a crédito libera el límite (100000).
 select pruebas.como(:'c2');
 select public.crear_pedido(:'d1', :'pr2x2', gen_random_uuid(),
-                           p_condicion_pago => 'credito') as cred1 \gset
+                           p_despacho => 'recojo', p_condicion_pago => 'credito') as cred1 \gset
 select pruebas.espera_error(
   format($q$select public.crear_pedido(%L, %L, gen_random_uuid(),
-                                        p_condicion_pago => 'credito')$q$, :'d1', :'pr2x2'),
+                                       p_despacho => 'recojo', p_condicion_pago => 'credito')$q$,
+         :'d1', :'pr2x2'),
   'P0004', '4.17 con 96000 de deuda no cabe otro pedido de 96000');
 select pruebas.como(:'a1');
 select public.registrar_pago(:'cred1', 96000, 'transferencia');
@@ -244,7 +247,7 @@ select pruebas.afirma(
   '4.17 el pedido a crédito queda pagado');
 select pruebas.como(:'c2');
 select public.crear_pedido(:'d1', :'pr2x2', gen_random_uuid(),
-                           p_condicion_pago => 'credito') as cred2 \gset
+                           p_despacho => 'recojo', p_condicion_pago => 'credito') as cred2 \gset
 select pruebas.afirma(
   (select total_centimos = 96000 and condicion_pago = 'credito'
    from public.pedidos where id = :'cred2'),
@@ -252,7 +255,8 @@ select pruebas.afirma(
 
 -- 4.18: un pedido de contado se entrega sin pagar y se cobra después.
 select pruebas.como(:'c1');
-select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid()) as cont \gset
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(),
+                           p_despacho => 'recojo', p_condicion_pago => 'contado') as cont \gset
 select pruebas.como(:'a1');
 select public.cambiar_estado_pedido(:'cont', 'confirmado');
 select public.cambiar_estado_pedido(:'cont', 'listo_recojo');

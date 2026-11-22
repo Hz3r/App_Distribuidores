@@ -45,10 +45,11 @@ create table public.contadores_pedido (
   actualizado_en timestamptz not null default now()
 );
 
--- Pedido de una bodega. Nace con saldo igual al total; vence_en se fija al
--- entregar un pedido a crédito. plazo_credito_dias es una copia del plazo de
--- la bodega al crear el pedido (solo a crédito): si después se cambia o se
--- quita el crédito de la bodega, el vencimiento de este pedido no cambia.
+-- Pedido de una bodega. Nace con saldo igual al total (si el total es 0,
+-- con estado_pago pagado); vence_en se fija al entregar un pedido a crédito.
+-- plazo_credito_dias es una copia del plazo de la bodega al crear el pedido
+-- (solo a crédito): si después se cambia o se quita el crédito de la bodega,
+-- el vencimiento de este pedido no cambia.
 create table public.pedidos (
   id uuid primary key default gen_random_uuid(),
   distribuidor_id uuid not null references public.distribuidores (id),
@@ -298,8 +299,10 @@ create policy perfiles_select_repartidor_de_mis_pedidos on public.perfiles
 -- Funciones públicas
 -- ---------------------------------------------------------------------------
 
--- Crea un pedido en una sola transacción (spec 6.3). Los parámetros con
--- valor por defecto van al final; la app los pasa por nombre.
+-- Crea un pedido en una sola transacción (spec 6.3). p_despacho y
+-- p_condicion_pago son obligatorios (sin valor por defecto): una app que los
+-- olvide recibe un error, no un recojo de contado. Los parámetros con valor
+-- por defecto van al final; la app los pasa todos por nombre.
 --
 -- - Cliente: la bodega es la de su membresía; p_cliente_id nulo o igual.
 -- - Admin o vendedor: p_cliente_id obligatorio y de ese distribuidor.
@@ -308,10 +311,12 @@ create policy perfiles_select_repartidor_de_mis_pedidos on public.perfiles
 -- Bloqueos, siempre en el mismo orden para evitar bloqueos mutuos: la fila
 -- de la bodega, luego los productos por id ascendente, luego el contador del
 -- distribuidor. El bloqueo de la bodega serializa sus pedidos: así la
--- idempotencia y las reglas de crédito no tienen carreras.
+-- idempotencia y las reglas de crédito no tienen carreras. Tras obtenerlo se
+-- revalida el permiso de quien llama.
 --
--- Errores: 42501 sin permiso o bodega ajena; 22023 parámetro o ítems mal
--- formados; P0002 presentación inexistente, inactiva (o su producto) o de
+-- Errores: 42501 sin permiso o bodega ajena (también si se pierde mientras
+-- espera el bloqueo); 22023 parámetro o ítems mal formados, o más de 200
+-- presentaciones distintas; P0002 presentación inexistente, inactiva (o su producto) o de
 -- otro distribuidor; P0001 stock insuficiente; P0003 distribuidor fuera de
 -- prueba/activo o bodega inactiva; P0004 crédito no habilitado, límite
 -- excedido o deuda vencida.
@@ -319,9 +324,9 @@ create function public.crear_pedido(
   p_distribuidor_id uuid,
   p_items jsonb,
   p_clave_idempotencia uuid,
+  p_despacho public.despacho_pedido,
+  p_condicion_pago public.condicion_pago,
   p_cliente_id uuid default null,
-  p_despacho public.despacho_pedido default 'recojo',
-  p_condicion_pago public.condicion_pago default 'contado',
   p_metodo_pago public.metodo_pago default null,
   p_nota text default null
 ) returns uuid
@@ -332,8 +337,10 @@ set search_path = ''
 as $$
 declare
   c_max_integer constant bigint := 2147483647;
+  c_max_lineas constant integer := 200;
   v_uid uuid := auth.uid();
   v_cliente uuid;
+  v_es_cliente boolean;
   v_bodega public.clientes_negocio;
   v_distribuidor public.distribuidores;
   v_pedido uuid;
@@ -356,7 +363,8 @@ begin
 
   -- 1. Bodega y permiso.
   v_cliente := privado.mi_cliente_en(p_distribuidor_id);
-  if v_cliente is not null then
+  v_es_cliente := v_cliente is not null;
+  if v_es_cliente then
     if p_cliente_id is not null and p_cliente_id <> v_cliente then
       raise exception 'No puede pedir a nombre de otra bodega' using errcode = '42501';
     end if;
@@ -380,13 +388,21 @@ begin
       using errcode = '22023';
   end if;
 
-  -- Primer bloqueo: la bodega.
+  -- Primer bloqueo: la bodega. "no key update" basta para serializar sus
+  -- pedidos y no frena las claves foráneas que apuntan a ella.
   select * into v_bodega
   from public.clientes_negocio c
   where c.id = v_cliente and c.distribuidor_id = p_distribuidor_id
-  for update;
+  for no key update;
 
-  if not found or not v_bodega.activo then
+  -- Revalida con la fila ya bloqueada: quien llama pudo perder su membresía
+  -- o su rol (o el cliente, su bodega) mientras esperaba el bloqueo.
+  if (v_es_cliente and privado.mi_cliente_en(p_distribuidor_id) is distinct from v_cliente)
+     or (not v_es_cliente and not privado.tiene_rol(p_distribuidor_id, '{admin,vendedor}')) then
+    raise exception 'No puede crear pedidos en este distribuidor' using errcode = '42501';
+  end if;
+
+  if v_bodega.id is null or not v_bodega.activo then
     raise exception 'La bodega está inactiva' using errcode = 'P0003';
   end if;
 
@@ -446,6 +462,11 @@ begin
 
   if exists (select 1 from unnest(v_cantidades) as q (cantidad) where q.cantidad > c_max_integer) then
     raise exception 'Cantidad demasiado grande' using errcode = '22023';
+  end if;
+
+  -- Tope de líneas (presentaciones distintas) por pedido, antes de bloquear.
+  if cardinality(v_presentaciones) > c_max_lineas then
+    raise exception 'El pedido supera las % líneas', c_max_lineas using errcode = '22023';
   end if;
 
   -- 4. Segundo bloqueo: los productos involucrados, por id ascendente. Solo
@@ -558,11 +579,13 @@ begin
 
   insert into public.pedidos
     (distribuidor_id, numero, cliente_id, creado_por, despacho, direccion_entrega,
-     nota_cliente, total_centimos, condicion_pago, metodo_pago,
+     nota_cliente, total_centimos, condicion_pago, metodo_pago, estado_pago,
      saldo_pendiente_centimos, plazo_credito_dias, clave_idempotencia)
   values
     (p_distribuidor_id, v_numero, v_cliente, v_uid, p_despacho, v_bodega.direccion,
      p_nota, v_total, p_condicion_pago, p_metodo_pago,
+     -- Saldo 0 desde el inicio: no hay nada que cobrar.
+     case when v_total = 0 then 'pagado' else 'pendiente' end::public.estado_pago,
      v_total,
      case when p_condicion_pago = 'credito' then v_bodega.plazo_credito_dias end,
      p_clave_idempotencia)
@@ -589,13 +612,13 @@ begin
 end $$;
 
 revoke execute on function
-  public.crear_pedido(uuid, jsonb, uuid, uuid, public.despacho_pedido,
-                      public.condicion_pago, public.metodo_pago, text)
+  public.crear_pedido(uuid, jsonb, uuid, public.despacho_pedido, public.condicion_pago,
+                      uuid, public.metodo_pago, text)
   from public, anon;
 
 grant execute on function
-  public.crear_pedido(uuid, jsonb, uuid, uuid, public.despacho_pedido,
-                      public.condicion_pago, public.metodo_pago, text)
+  public.crear_pedido(uuid, jsonb, uuid, public.despacho_pedido, public.condicion_pago,
+                      uuid, public.metodo_pago, text)
   to authenticated;
 
 -- ---------------------------------------------------------------------------

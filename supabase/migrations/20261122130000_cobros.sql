@@ -241,13 +241,13 @@ grant execute on function
 -- al saldo del pedido, con estado_pago recalculado en un solo update.
 --
 -- Bloqueos, en este orden: el pedido, su bodega y el pago. El pedido antes
--- de leer el saldo, como registrar_pago. La bodega, porque crear_pedido la
--- bloquea antes de leer la deuda a crédito: así un pedido nuevo no se crea
--- con la deuda leída antes de que esta anulación la suba. Pedido y luego
--- bodega es el mismo orden que sigue registrar_pago (la clave foránea de
--- pagos hacia la bodega toma un bloqueo compartido sobre ella al insertar);
--- crear_pedido no bloquea pedidos existentes, así que no hay bloqueos
--- mutuos.
+-- de leer el saldo, como registrar_pago. La bodega con "for no key update",
+-- el mismo modo que toma crear_pedido antes de leer la deuda a crédito: así
+-- un pedido nuevo de esa bodega no se crea con la deuda leída antes de que
+-- esta anulación la suba. Ese modo no choca con el "key share" que toman las
+-- claves foráneas (el insert de registrar_pago en pagos), así que no frena
+-- los cobros. crear_pedido no bloquea pedidos existentes, así que no hay
+-- bloqueos mutuos.
 --
 -- Errores: 42501 sin sesión o sin rol de admin; P0002 pago inexistente o de
 -- un pedido que quien llama no puede ver; 22023 nota nula o vacía; P0006
@@ -300,7 +300,7 @@ begin
   perform 1
   from public.clientes_negocio c
   where c.id = v_pedido.cliente_id and c.distribuidor_id = v_pedido.distribuidor_id
-  for update;
+  for no key update;
 
   select * into v_pago from public.pagos g where g.id = p_pago_id for update;
 

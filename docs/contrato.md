@@ -347,7 +347,12 @@ Los mensajes están en español y pueden cambiar; la app decide por el código, 
 
 ### Módulo 3: pedidos
 
-**`crear_pedido(p_distribuidor_id uuid, p_items jsonb, p_clave_idempotencia uuid, p_cliente_id uuid default null, p_despacho despacho_pedido default 'recojo', p_condicion_pago condicion_pago default 'contado', p_metodo_pago metodo_pago default null, p_nota text default null) returns uuid`**
+**`crear_pedido(p_distribuidor_id uuid, p_items jsonb, p_clave_idempotencia uuid, p_despacho despacho_pedido, p_condicion_pago condicion_pago, p_cliente_id uuid default null, p_metodo_pago metodo_pago default null, p_nota text default null) returns uuid`**
+
+- `p_despacho` y `p_condicion_pago` son **obligatorios** (sin valor por defecto): una llamada que
+  omite alguno no encuentra la función (`42883`; por la Data API, error de función inexistente).
+  Pasarlos explícitamente en `null` da `22023`.
+- Máximo **200 presentaciones distintas** por pedido (después de sumar las repetidas).
 
 - `p_items = [{"presentacion_id": "<uuid>", "cantidad": <entero>}, ...]`. Varias entradas de la
   misma presentación se suman en una línea.
@@ -359,7 +364,8 @@ Los mensajes están en español y pueden cambiar; la app decide por el código, 
 - En una transacción:
   1. Verifica permiso y bodega. Un cliente cuya bodega está inactiva recibe `42501`: su membresía
      ya no cuenta, así que no es cliente de ese distribuidor. Bloquea la fila de la bodega
-     (serializa sus pedidos).
+     (serializa sus pedidos) y, con el bloqueo obtenido, vuelve a verificar el permiso: si quien
+     llama perdió su membresía o su rol mientras esperaba, recibe `42501`.
   2. Rechaza con `P0003` si el distribuidor no está en `prueba` ni `activo`, o si la bodega está
      inactiva (esto último solo llega en pedidos que admin o vendedor crean a su nombre).
   3. **Idempotencia:** si la bodega ya tiene un pedido con esa clave, devuelve su id sin revisar los
@@ -372,12 +378,14 @@ Los mensajes están en español y pueden cambiar; la app decide por el código, 
      por otras presentaciones del mismo producto); precio según la regla de abajo.
   7. Si es a crédito, aplica las reglas de crédito.
   8. Asigna el `numero`, crea el pedido en `recibido` con `saldo_pendiente_centimos = total` y
-     `estado_pago = pendiente`, sus líneas, un movimiento `reserva` por línea (sube el
-     comprometido) y el primer evento.
+     `estado_pago = pendiente` (`pagado` si el total es 0), sus líneas, un movimiento `reserva`
+     por línea (sube el comprometido) y el primer evento.
 - Devuelve el id del pedido. Si algo falla, se revierte todo.
-- Errores: `42501` sin permiso o bodega ajena (también un cliente cuya bodega está inactiva);
-  `22023` falta la clave, el despacho o la condición, admin o vendedor sin `p_cliente_id`, ítems que no son un arreglo no vacío de
-  `{presentacion_id, cantidad}`, cantidad no entera, ≤ 0 o mayor al máximo de `integer`;
+- Errores: `42501` sin permiso o bodega ajena (también un cliente cuya bodega está inactiva, o
+  quien pierde el permiso mientras espera el bloqueo); `22023` clave, despacho o condición en
+  `null`, admin o vendedor sin `p_cliente_id`, ítems que no son un arreglo no vacío de
+  `{presentacion_id, cantidad}`, cantidad no entera, ≤ 0 o mayor al máximo de `integer`, más de
+  200 presentaciones distintas;
   `P0002` presentación inexistente, inactiva (o su producto) o de otro distribuidor; `P0001` stock
   insuficiente (el mensaje nombra el producto); `P0003` distribuidor fuera de `prueba`/`activo` o
   bodega inactiva en un pedido a su nombre (admin o vendedor); `P0004` crédito no habilitado, límite excedido o deuda vencida.
@@ -386,8 +394,8 @@ Los mensajes están en español y pueden cambiar; la app decide por el código, 
     instante puede dejar pasar un pedido.
   - El estado del distribuidor y de la bodega se revisan antes de la idempotencia: un reintento con
     el distribuidor ya suspendido recibe `P0003` aunque el pedido exista.
-  - Un pedido de total 0 (presentaciones a precio 0) nace `pendiente` y no admite pagos
-    (`registrar_pago` rechaza todo monto por superar el saldo). **Pendiente de decisión.**
+  - Un pedido de total 0 (presentaciones a precio 0) nace con `estado_pago = pagado` y saldo 0:
+    no hay nada que cobrar (`registrar_pago` rechaza todo monto por superar el saldo).
 
 **Regla de precio** (por línea, `privado.precio_para`):
 1. Precio de partida: el de `precios_lista` si la bodega tiene una lista **activa** y la
@@ -500,8 +508,8 @@ Cancelar exige nota y que no haya pagos sin anular. Un pedido de `reparto` neces
 asignado solo para que el repartidor lo mueva; admin y vendedor pueden moverlo sin él.
 
 Otros estados:
-- `estado_pago`: `pendiente` (saldo = total), `parcial`, `pagado` (saldo 0). Solo lo mueven
-  `registrar_pago` y `anular_pago`.
+- `estado_pago`: `pendiente` (saldo = total), `parcial`, `pagado` (saldo 0). Un pedido de total 0
+  nace `pagado`. Después solo lo mueven `registrar_pago` y `anular_pago`.
 - `estado_membresia`: `activa` ↔ `suspendida`, con `cambiar_estado_membresia`. La bodega de una
   membresía de cliente se cambia con `cambiar_bodega_membresia`.
 - `estado_distribuidor`: libre entre sus valores, con `cambiar_estado_distribuidor`.
@@ -615,7 +623,7 @@ Termina con `TODO OK`. En CI corre en el job `sql` de `.github/workflows/ci.yml`
 | `01_identidad_test.sql` | Aislamiento, invitaciones, canje y freno, membresías |
 | `02_catalogo_test.sql` | Catálogo, stock, listas, Storage, protección de bodegas |
 | `03_pedidos_test.sql` | `crear_pedido`, precio, crédito, idempotencia, estados, repartidor |
-| `03_concurrencia_test.sh` | Dos pedidos simultáneos por el mismo stock; reintento simultáneo |
+| `03_concurrencia_test.sh` | Dos pedidos simultáneos por el mismo stock; reintento simultáneo; permiso perdido mientras se espera el bloqueo de la bodega |
 | `04_cobros_test.sql` | Pagos, anulación, cancelación con pagos |
 | `05_plataforma_test.sql` | Planes, suscripciones, alta y estado de distribuidores |
 | `06_seguridad_test.sql` | Barrido: RLS, grants, `search_path`, políticas, montos `bigint` |

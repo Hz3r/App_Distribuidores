@@ -124,7 +124,8 @@ select pruebas.afirma(
   '5.7 D1 queda suspendido');
 select pruebas.como(:'c1');
 select pruebas.espera_error(
-  format('select public.crear_pedido(%L, %L, gen_random_uuid())', :'d1', :'pr1x1'),
+  format($q$select public.crear_pedido(%L, %L, gen_random_uuid(), p_despacho => 'recojo',
+                                        p_condicion_pago => 'contado')$q$, :'d1', :'pr1x1'),
   'P0003', '5.7 crear_pedido rechaza pedidos en D1 suspendido');
 select pruebas.afirma(
   pruebas.cuenta(format('select 1 from public.productos where distribuidor_id = %L', :'d1')) > 0,

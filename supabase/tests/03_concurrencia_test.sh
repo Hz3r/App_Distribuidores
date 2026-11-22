@@ -11,6 +11,9 @@
 #      y el otro falla con P0001; queda 1 pedido y el comprometido en 10.
 #   2. C1 reintenta a la vez con la misma clave de idempotencia: las dos
 #      sesiones devuelven el mismo id y hay un solo pedido con esa clave.
+#   3. V1 pide a nombre de 0b02 mientras otra sesión tiene bloqueada la
+#      bodega y le suspende la membresía: al obtener el bloqueo, crear_pedido
+#      revalida el rol y falla con 42501; no queda pedido.
 #
 # Usa PGHOST, PGPORT, PGUSER y PGPASSWORD del entorno.
 set -euo pipefail
@@ -41,6 +44,8 @@ D1=00000000-0000-0000-0000-000000000d01
 P1=00000000-0000-0000-0000-000000000101
 C1=00000000-0000-0000-0000-0000000000c1
 C2=00000000-0000-0000-0000-0000000000c2
+V1=00000000-0000-0000-0000-0000000000b1
+B2=00000000-0000-0000-0000-000000000b02
 ITEMS='[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 10}]'
 
 # Valor de una consulta como servicio.
@@ -57,7 +62,8 @@ sesion() {
 \set VERBOSITY verbose
 begin;
 select pruebas.como('$uid') \gset
-select public.crear_pedido('$D1', '$ITEMS', '$clave') as pedido \gset
+select public.crear_pedido('$D1', '$ITEMS', '$clave',
+                           p_despacho => 'recojo', p_condicion_pago => 'contado') as pedido \gset
 select pg_sleep(2) \gset
 commit;
 \echo ID :pedido
@@ -107,5 +113,37 @@ n=$(valor "select count(*) from public.pedidos where clave_idempotencia = '$CLAV
 [ "$n" = 1 ] || falla "se esperaba 1 pedido con la clave repetida y hay $n"
 c=$(valor "select stock_comprometido from public.productos where id = '$P1'")
 [ "$c" = 20 ] || falla "se esperaba comprometido 20 en P1 (una sola reserva) y hay $c"
+
+# --- Caso 3: el vendedor pierde el rol mientras espera la bodega ----------
+valor "update public.productos set stock_fisico = stock_fisico + 10 where id = '$P1'" >/dev/null
+CLAVE3=00000000-0000-0000-0000-00000000cc04
+# Sesión A (servicio): bloquea la bodega, suspende a V1 y confirma a los 2 s.
+"${PSQL[@]}" -At >"$TMP/a.out" 2>"$TMP/a.err" <<SQL &
+begin;
+select 1 as bloqueada from public.clientes_negocio where id = '$B2' for update \gset
+select pg_sleep(2) \gset
+update public.membresias set estado = 'suspendida'
+where perfil_id = '$V1' and distribuidor_id = '$D1';
+commit;
+SQL
+pida=$!
+# Sesión B (V1): empieza cuando A ya tiene el bloqueo y queda esperándolo.
+"${PSQL[@]}" -At >"$TMP/b.out" 2>"$TMP/b.err" <<SQL &
+\set VERBOSITY verbose
+select pg_sleep(0.5) \gset
+select pruebas.como('$V1') \gset
+select public.crear_pedido('$D1', '$ITEMS', '$CLAVE3',
+                           p_despacho => 'recojo', p_condicion_pago => 'contado',
+                           p_cliente_id => '$B2') as pedido \gset
+SQL
+pidb=$!
+ra=0; wait "$pida" || ra=$?
+rb=0; wait "$pidb" || rb=$?
+[ "$ra" = 0 ] || falla "la sesión que bloquea la bodega falló: $(cat "$TMP/a.err")"
+[ "$rb" != 0 ] || falla "V1 suspendido mientras esperaba creó el pedido"
+grep -q 'ERROR:  42501' "$TMP/b.err" \
+  || falla "V1 no falló con 42501: $(cat "$TMP/b.err")"
+n=$(valor "select count(*) from public.pedidos where clave_idempotencia = '$CLAVE3'")
+[ "$n" = 0 ] || falla "se esperaba ningún pedido con la clave del caso 3 y hay $n"
 
 echo "OK concurrencia"

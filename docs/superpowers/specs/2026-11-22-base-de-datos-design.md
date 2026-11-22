@@ -318,6 +318,7 @@ Códigos de error (se conservan los del borrador y se agregan dos):
 | `P0003` | Distribuidor suspendido o bodega inactiva |
 | `P0004` | Crédito no habilitado, límite excedido o deuda vencida |
 | `P0005` | Demasiados intentos de canje (solo `canjear_invitacion`) |
+| `P0006` | Operación no válida para el estado actual: transición de pedido inválida, pago sobre pedido cancelado, pago ya anulado, cancelar con pagos activos, dejar a un distribuidor sin admin |
 
 **`public.cambiar_estado_pedido(p_pedido uuid, p_estado estado_pedido, p_nota text)`**
 

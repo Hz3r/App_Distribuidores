@@ -225,4 +225,24 @@ select pruebas.espera_error(
      where id = '00000000-0000-0000-0000-000000000b01'$q$,
   '42501', '2.31 el admin no cambia el id de una bodega');
 
+-- 2.32: el bucket catalogo limita tamaño y tipo de archivo.
+select pruebas.como_servicio();
+select pruebas.afirma(
+  (select public and file_size_limit = 5242880
+          and allowed_mime_types = '{image/jpeg,image/png,image/webp}'::text[]
+   from storage.buckets where id = 'catalogo'),
+  '2.32 el bucket catalogo acepta solo imágenes jpeg, png o webp de hasta 5 MB');
+
+-- 2.33: una cantidad que desbordaría el stock es un parámetro inválido.
+select pruebas.como('00000000-0000-0000-0000-0000000000a1');
+select pruebas.espera_error(
+  $q$select public.registrar_movimiento_stock('00000000-0000-0000-0000-000000000101', 'ingreso', 2147483647)$q$,
+  '22023', '2.33 un ingreso que desborda el stock físico se rechaza');
+
+-- 2.34: el sku no puede ser texto vacío (nulo sí).
+select pruebas.espera_error(
+  $q$insert into public.productos (distribuidor_id, nombre, sku)
+     values ('00000000-0000-0000-0000-000000000d01', 'Sin código', '')$q$,
+  '23514', '2.34 un sku vacío se rechaza');
+
 rollback;

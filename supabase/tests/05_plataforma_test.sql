@@ -268,4 +268,54 @@ select pruebas.como_anon();
 select pruebas.espera_error('select 1 from public.planes', '42501', '5.15 anon no lee planes');
 select pruebas.como_servicio();
 
+-- 5.16: el slug se guarda en minúsculas y debe tener forma de slug.
+select pruebas.como(:'s1');
+select public.crear_distribuidor('Abarrotes Norte', '  ABARROTES-Norte ', 'abarrotes', 'pro')
+  ->> 'distribuidor_id' as norte \gset
+select pruebas.afirma(
+  (select slug = 'abarrotes-norte' from public.distribuidores where id = :'norte'),
+  '5.16 el slug se guarda en minúsculas y sin espacios');
+select pruebas.espera_error(
+  $$select public.crear_distribuidor('Otro', 'mal slug', 'abarrotes', 'pro')$$,
+  '22023', '5.16 slug con espacio');
+select pruebas.espera_error(
+  $$select public.crear_distribuidor('Otro', '-otro', 'abarrotes', 'pro')$$,
+  '22023', '5.16 slug que empieza con guion');
+select pruebas.espera_error(
+  $$select public.crear_distribuidor('Otro', 'otro--dos', 'abarrotes', 'pro')$$,
+  '22023', '5.16 slug con guiones seguidos');
+select pruebas.espera_error(
+  $$select public.crear_distribuidor('Otro', 'ñandú', 'abarrotes', 'pro')$$,
+  '22023', '5.16 slug con letras fuera de a-z');
+select pruebas.espera_error(
+  $$select public.crear_distribuidor('Abarrotes Sur 3', 'ABARROTES-SUR', 'abarrotes', 'pro')$$,
+  '23505', '5.16 el slug repetido se detecta sin importar mayúsculas');
+
+-- 5.17: no se registra el pago de una suscripción cancelada.
+select pruebas.como_servicio();
+insert into public.suscripciones (distribuidor_id, plan_id, estado, periodo_inicio, periodo_fin)
+select :'d1', id, 'cancelada', '2026-01-01', '2026-01-31'
+from public.planes where codigo = 'basico'
+returning id as cancelada \gset
+select pruebas.como(:'s1');
+select pruebas.espera_error(
+  format($$select public.registrar_pago_suscripcion(%L, 9900, 'transferencia',
+           '2027-01-01', '2027-01-31')$$, :'cancelada'),
+  'P0006', '5.17 pago sobre una suscripción cancelada');
+
+-- 5.18: el distribuidor nuevo ya tiene una vigente (5.9): pagar su
+-- suscripción vencida (5.14) da P0006 y no deja nada registrado.
+select id as vencida from public.suscripciones
+where distribuidor_id = :'nuevo' and estado = 'vencida' \gset
+select pruebas.espera_error(
+  format($$select public.registrar_pago_suscripcion(%L, 9900, 'transferencia',
+           '2027-01-01', '2027-01-31')$$, :'vencida'),
+  'P0006', '5.18 pago que dejaría dos suscripciones vigentes');
+select pruebas.afirma(
+  (select estado = 'vencida' from public.suscripciones where id = :'vencida')
+  and (select count(*) = 0 from public.pagos_suscripcion
+       where suscripcion_id in (:'vencida', :'cancelada')),
+  '5.18 los rechazos no dejan pagos ni cambian las suscripciones');
+select pruebas.como_servicio();
+
 rollback;

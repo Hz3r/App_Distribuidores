@@ -154,8 +154,12 @@ create policy pagos_suscripcion_select on public.pagos_suscripcion
 -- nombre del Super Admin. Quien canjea el código es el primer admin.
 -- Devuelve {"distribuidor_id": "<uuid>", "invitacion_codigo": "<código>"}.
 --
--- Errores: 42501 sin sesión o sin ser Super Admin; 22023 nombre o slug
--- vacíos, o plan inexistente o inactivo; 23505 slug repetido.
+-- El slug se guarda sin espacios y en minúsculas, y debe tener la forma
+-- ^[a-z0-9]+(-[a-z0-9]+)*$ (palabras de a-z y 0-9 unidas por un guion).
+--
+-- Errores: 42501 sin sesión o sin ser Super Admin; 22023 nombre vacío, slug
+-- vacío o sin forma de slug, o plan inexistente o inactivo; 23505 slug
+-- repetido.
 create function public.crear_distribuidor(
   p_nombre text,
   p_slug text,
@@ -172,6 +176,7 @@ as $$
 declare
   v_uid uuid := auth.uid();
   v_plan uuid;
+  v_slug text := lower(btrim(p_slug));
   v_distribuidor public.distribuidores;
   v_hoy date;
   v_invitacion public.invitaciones;
@@ -184,8 +189,13 @@ begin
     raise exception 'Solo el Super Admin crea distribuidores' using errcode = '42501';
   end if;
 
-  if nullif(btrim(p_nombre), '') is null or nullif(btrim(p_slug), '') is null then
+  if nullif(btrim(p_nombre), '') is null or nullif(v_slug, '') is null then
     raise exception 'Indique el nombre y el slug' using errcode = '22023';
+  end if;
+
+  if v_slug !~ '^[a-z0-9]+(-[a-z0-9]+)*$' then
+    raise exception 'El slug solo admite a-z, 0-9 y guiones entre palabras'
+      using errcode = '22023';
   end if;
 
   select pl.id into v_plan
@@ -198,7 +208,7 @@ begin
 
   -- Un slug repetido falla aquí con 23505 (unique de distribuidores.slug).
   insert into public.distribuidores (nombre, slug, rubro, documento, telefono, estado)
-  values (btrim(p_nombre), btrim(p_slug), p_rubro, p_documento, p_telefono, 'prueba')
+  values (btrim(p_nombre), v_slug, p_rubro, p_documento, p_telefono, 'prueba')
   returning * into v_distribuidor;
 
   v_hoy := (now() at time zone v_distribuidor.zona_horaria)::date;
@@ -257,14 +267,17 @@ begin
 end $$;
 
 -- Registra el pago de un periodo de una suscripción y la deja activa con ese
--- periodo. Bloquea la suscripción para que dos pagos simultáneos no se
--- pisen. Si el distribuidor ya tiene otra suscripción vigente, activar esta
--- falla con 23505 (índice único parcial) y no queda nada registrado.
+-- periodo (también si estaba vencida). Bloquea la suscripción para que dos
+-- pagos simultáneos no se pisen. Una suscripción cancelada no se reactiva
+-- con un pago, y si el distribuidor ya tiene otra suscripción vigente no se
+-- activa una segunda: las dos son P0006 y no queda nada registrado. El
+-- índice único parcial suscripciones_vigente_unica sigue de resguardo.
 -- No cambia distribuidores.estado: eso va por cambiar_estado_distribuidor.
 --
 -- Errores: 42501 sin sesión o sin ser Super Admin; P0002 suscripción
 -- inexistente; 22023 monto nulo o menor o igual a cero, método vacío, o
--- periodo nulo o invertido.
+-- periodo nulo o invertido; P0006 suscripción cancelada o distribuidor con
+-- otra suscripción vigente.
 create function public.registrar_pago_suscripcion(
   p_suscripcion_id uuid,
   p_monto_centimos bigint,
@@ -312,6 +325,19 @@ begin
 
   if not found then
     raise exception 'Suscripción inexistente' using errcode = 'P0002';
+  end if;
+
+  if v_suscripcion.estado = 'cancelada' then
+    raise exception 'La suscripción está cancelada' using errcode = 'P0006';
+  end if;
+
+  if exists (
+    select 1 from public.suscripciones s
+    where s.distribuidor_id = v_suscripcion.distribuidor_id
+      and s.id <> v_suscripcion.id
+      and s.estado in ('prueba', 'activa')
+  ) then
+    raise exception 'El distribuidor ya tiene otra suscripción vigente' using errcode = 'P0006';
   end if;
 
   insert into public.pagos_suscripcion

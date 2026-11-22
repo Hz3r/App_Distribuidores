@@ -46,7 +46,9 @@ grant usage on schema storage to anon, authenticated, service_role;
 create table storage.buckets (
   id text primary key,
   name text,
-  public boolean
+  public boolean,
+  file_size_limit bigint,
+  allowed_mime_types text[]
 );
 
 create table storage.objects (

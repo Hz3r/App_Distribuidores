@@ -37,7 +37,7 @@ create table public.productos (
   nombre text not null,
   descripcion text,
   marca text,
-  sku text,
+  sku text check (sku <> ''),
   imagen_url text,
   unidad_base text not null default 'unidad',
   stock_fisico integer not null default 0,
@@ -46,7 +46,8 @@ create table public.productos (
   creado_en timestamptz not null default now(),
   actualizado_en timestamptz not null default now(),
   unique (id, distribuidor_id),
-  -- Varios productos sin sku conviven: los nulos no chocan en un unique.
+  -- Varios productos sin sku conviven: los nulos no chocan en un unique (por
+  -- eso el sku vacío se rechaza: sin código va nulo).
   unique (distribuidor_id, sku),
   foreign key (categoria_id, distribuidor_id)
     references public.categorias (id, distribuidor_id),
@@ -512,9 +513,11 @@ create policy movimientos_stock_select on public.movimientos_stock
 -- <distribuidor_id>/... Solo el admin de ese distribuidor escribe en su
 -- carpeta. La política de select (también de su carpeta) hace falta para que
 -- el update y el delete encuentren la fila; la lectura pública va por la URL
--- del bucket, no por esta tabla.
+-- del bucket, no por esta tabla. Solo imágenes jpeg, png o webp de hasta
+-- 5 MB.
 -- ---------------------------------------------------------------------------
-insert into storage.buckets (id, name, public) values ('catalogo', 'catalogo', true);
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('catalogo', 'catalogo', true, 5242880, '{image/jpeg,image/png,image/webp}');
 
 create policy catalogo_select on storage.objects
   for select to authenticated
@@ -556,6 +559,10 @@ create policy catalogo_delete on storage.objects
 -- producto y solo tipos ingreso (cantidad > 0, suma al físico) y ajuste
 -- (diferencia con signo, distinta de cero). Reserva, liberación y salida las
 -- generan únicamente las funciones de pedidos.
+--
+-- Errores: 42501 sin sesión, producto inexistente o sin permiso; 22023 tipo
+-- o cantidad inválidos, o un físico resultante mayor al máximo de integer;
+-- P0001 el físico quedaría por debajo del comprometido.
 create function public.registrar_movimiento_stock(
   p_producto_id uuid,
   p_tipo public.tipo_movimiento_stock,
@@ -598,7 +605,12 @@ begin
     raise exception 'No puede mover el stock de este producto' using errcode = '42501';
   end if;
 
-  if v_p.stock_fisico + p_cantidad < v_p.stock_comprometido then
+  -- En bigint: con integer, una cantidad enorme desbordaría (22003).
+  if v_p.stock_fisico::bigint + p_cantidad > 2147483647 then
+    raise exception 'La cantidad haría desbordar el stock físico' using errcode = '22023';
+  end if;
+
+  if v_p.stock_fisico::bigint + p_cantidad < v_p.stock_comprometido then
     raise exception 'El stock físico quedaría por debajo del comprometido'
       using errcode = 'P0001';
   end if;

@@ -104,7 +104,7 @@ Reglas:
 | Tabla | Propósito | Columnas |
 |---|---|---|
 | `categorias` ✎ | Agrupa productos | `distribuidor_id`, `nombre`, `orden` (def. 0), `activo` |
-| `productos` ✎ | Lo que se inventaría | `distribuidor_id`, `categoria_id?`, `nombre`, `descripcion?`, `marca?`, `sku?` (único por distribuidor), `imagen_url?`, `unidad_base` (texto libre, def. `unidad`), `stock_fisico` (def. 0), `stock_comprometido` (def. 0), `activo` |
+| `productos` ✎ | Lo que se inventaría | `distribuidor_id`, `categoria_id?`, `nombre`, `descripcion?`, `marca?`, `sku?` (único por distribuidor; nulo o no vacío), `imagen_url?`, `unidad_base` (texto libre, def. `unidad`), `stock_fisico` (def. 0), `stock_comprometido` (def. 0), `activo` |
 | `presentaciones` ✎ | Lo que se vende | `distribuidor_id`, `producto_id`, `nombre`, `factor` (> 0), `precio_base_centimos` (≥ 0), `orden`, `activo` |
 | `precios_volumen` ✎ | Precio desde cierta cantidad | `distribuidor_id`, `presentacion_id`, `cantidad_minima` (> 0), `precio_centimos` (≥ 0); único por (`presentacion_id`, `cantidad_minima`) |
 | `listas_precios` ✎ | Lista opcional por tipo de cliente | `distribuidor_id`, `nombre`, `activo` |
@@ -128,7 +128,8 @@ Reglas de stock:
 
 **Imágenes (Storage):** bucket `catalogo`, de lectura pública por URL, con rutas
 `<distribuidor_id>/...`. Solo el admin de ese distribuidor sube, reemplaza, borra (y lista) dentro
-de su carpeta. Aquí van las fotos de productos y el logo.
+de su carpeta. Aquí van las fotos de productos y el logo. El bucket acepta solo `image/jpeg`,
+`image/png` e `image/webp`, de hasta 5 MB (`file_size_limit` 5242880).
 
 #### Módulo 3: pedidos
 
@@ -275,13 +276,13 @@ Los parámetros con valor por defecto van al final: **la app los pasa por nombre
 |---|---|
 | `42501` | Sin sesión, sin permiso, o recurso de otro distribuidor (bodega ajena) |
 | `22023` | Parámetro inválido o mal formado |
-| `23505` | Valor repetido (slug de distribuidor; segunda suscripción vigente) |
+| `23505` | Valor repetido (slug de distribuidor) |
 | `P0001` | Stock insuficiente (o un ajuste que deja el físico por debajo del comprometido) |
 | `P0002` | No existe, o quien llama no puede verlo (pedido, pago, presentación, suscripción, distribuidor) |
 | `P0003` | Distribuidor que no está en `prueba` ni `activo`, o bodega inactiva en un pedido que admin o vendedor crean a su nombre (un cliente con la bodega inactiva recibe `42501`: su membresía ya no cuenta) |
 | `P0004` | Crédito no habilitado, límite excedido o deuda vencida |
 | `P0005` | Demasiados intentos de canje (solo `canjear_invitacion`) |
-| `P0006` | Operación no válida para el estado actual: transición de pedido inválida, pago sobre pedido cancelado, pago ya anulado, cancelar con pagos activos, revocar una invitación usada, dejar a un distribuidor sin admin activo |
+| `P0006` | Operación no válida para el estado actual: transición de pedido inválida, pago sobre pedido cancelado, pago ya anulado, cancelar con pagos activos, revocar una invitación usada, dejar a un distribuidor sin admin activo, pagar una suscripción cancelada o que dejaría dos vigentes |
 
 > **Ojo con `P0004`:** coincide con el SQLSTATE de `assert_failure` de PL/pgSQL. Un bloque
 > `exception when others` **no** lo captura; hay que nombrarlo (`when others or assert_failure`).
@@ -342,8 +343,9 @@ Los mensajes están en español y pueden cambiar; la app decide por el código, 
 - Quién: admin del distribuidor del producto.
 - `ingreso`: `p_cantidad > 0`, suma al físico. `ajuste`: diferencia con signo, distinta de 0.
   Registra el movimiento con `hecho_por` = quien llama.
-- Errores: `42501` producto inexistente o sin permiso; `22023` otro tipo o cantidad inválida;
-  `P0001` el físico quedaría por debajo del comprometido.
+- Errores: `42501` producto inexistente o sin permiso; `22023` otro tipo o cantidad inválida, o un
+  físico resultante mayor al máximo de `integer`; `P0001` el físico quedaría por debajo del
+  comprometido.
 
 ### Módulo 3: pedidos
 
@@ -453,9 +455,11 @@ Los mensajes están en español y pueden cambiar; la app decide por el código, 
 **`crear_distribuidor(p_nombre text, p_slug text, p_rubro text, p_plan_codigo text, p_documento text default null, p_telefono text default null) returns jsonb`**
 - Crea el distribuidor en `prueba`, su suscripción en `prueba` por 30 días desde hoy y una invitación
   de rol `admin` vigente 7 días a nombre del Super Admin. Quien la canjea es el primer admin.
+- El slug se guarda sin espacios y en minúsculas, y debe cumplir `^[a-z0-9]+(-[a-z0-9]+)*$`
+  (por ejemplo `licores-del-norte`).
 - Devuelve `{"distribuidor_id": "<uuid>", "invitacion_codigo": "<código>"}`.
-- Errores: `42501` no es Super Admin; `22023` nombre o slug vacíos, o plan inexistente o inactivo;
-  `23505` slug repetido.
+- Errores: `42501` no es Super Admin; `22023` nombre vacío, slug vacío o sin esa forma, o plan
+  inexistente o inactivo; `23505` slug repetido (sin importar mayúsculas).
 
 **`cambiar_estado_distribuidor(p_distribuidor_id uuid, p_estado estado_distribuidor) returns void`**
 - Única vía para cambiar `distribuidores.estado` (suspender, reactivar, cancelar). Suspendido o
@@ -465,11 +469,12 @@ Los mensajes están en español y pueden cambiar; la app decide por el código, 
 
 **`registrar_pago_suscripcion(p_suscripcion_id uuid, p_monto_centimos bigint, p_metodo text, p_periodo_inicio date, p_periodo_fin date, p_referencia text default null, p_nota text default null) returns uuid`**
 - Registra el pago (`p_referencia` va a `referencia_externa`) y deja la suscripción en `activa` con
-  ese periodo, **aunque estuviera `vencida` o `cancelada`**. No cambia el estado del distribuidor:
-  eso es manual con `cambiar_estado_distribuidor`. Devuelve el id del pago.
+  ese periodo, también si estaba `vencida`. Una suscripción `cancelada` no se reactiva con un pago.
+  No cambia el estado del distribuidor: eso es manual con `cambiar_estado_distribuidor`. Devuelve
+  el id del pago.
 - Errores: `42501` no es Super Admin; `P0002` suscripción inexistente; `22023` monto nulo o ≤ 0,
-  método vacío, periodo nulo o invertido; `23505` el distribuidor ya tiene otra suscripción vigente
-  (no queda nada registrado).
+  método vacío, periodo nulo o invertido; `P0006` suscripción cancelada, o el distribuidor ya tiene
+  otra suscripción vigente (en los dos casos no queda nada registrado).
 
 `planes` se crea y edita con `insert`/`update` directos del Super Admin (no hay función).
 

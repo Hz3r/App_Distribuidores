@@ -31,11 +31,19 @@ select pg_temp.sin_ofensores($q$
   where n.nspname = 'public' and c.relkind in ('r', 'p') and not c.relrowsecurity
 $q$, '6.1 toda tabla de public tiene RLS activo');
 
+-- has_table_privilege y has_any_column_privilege cuentan también los grants
+-- a PUBLIC y los grants por columna.
 select pg_temp.sin_ofensores($q$
-  select table_name || ':' || privilege_type
-  from information_schema.role_table_grants
-  where table_schema = 'public' and grantee = 'anon'
-$q$, '6.2 anon sin privilegios sobre tablas de public');
+  select c.relname || ':' || priv
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  cross join unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE',
+                          'REFERENCES', 'TRIGGER']) as priv
+  where n.nspname = 'public' and c.relkind in ('r', 'p', 'v', 'm', 'f')
+    and (has_table_privilege('anon', c.oid, priv)
+         or (priv in ('SELECT', 'INSERT', 'UPDATE', 'REFERENCES')
+             and has_any_column_privilege('anon', c.oid, priv)))
+$q$, '6.2 anon sin privilegios (de tabla ni de columna, ni vía PUBLIC) sobre tablas de public');
 
 select pg_temp.sin_ofensores($q$
   select n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')'
@@ -86,16 +94,6 @@ select pg_temp.sin_ofensores($q$
      or (priv <> 'DELETE'  -- DELETE no existe a nivel de columna
          and has_any_column_privilege('authenticated', format('public.%I', t), priv))
 $q$, '6.8 authenticated sin escritura directa (tabla ni columna) en tablas solo-RPC');
-
-select pg_temp.sin_ofensores($q$
-  select table_name || ':' || privilege_type
-  from information_schema.column_privileges
-  where table_schema = 'public' and grantee = 'authenticated'
-    and privilege_type in ('INSERT', 'UPDATE')
-    and table_name in ('pedidos', 'pedido_items', 'pedido_eventos', 'pagos',
-         'movimientos_stock', 'membresias', 'invitaciones', 'intentos_canje',
-         'contadores_pedido', 'suscripciones', 'pagos_suscripcion')
-$q$, '6.8 (columnas, information_schema) sin privilegios INSERT/UPDATE');
 
 select pg_temp.sin_ofensores($q$
   select c from (values

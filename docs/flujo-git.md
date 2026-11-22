@@ -80,7 +80,7 @@ Abre el PR hacia `main`. Llena la plantilla (`.github/pull_request_template.md`)
 
 ## Revisión
 
-- **1 aprobación del otro socio**, según `CODEOWNERS`.
+- La revisión del otro socio es opcional: `CODEOWNERS` se la pide, pero no bloquea la fusión.
 - Antes de pedir revisión: CI en verde, sin `env/*.json` en el diff, migración incluida si cambia la BD.
 - Quien revisa **no hace push a la rama del autor**. Deja comentarios o pide cambios.
 - Al aprobar, quien abrió el PR lo fusiona (squash merge).

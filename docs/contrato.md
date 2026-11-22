@@ -1,9 +1,8 @@
 # Contrato: esquema, modelos, estados y tema
 
-> **Estado: BORRADOR.** Pendiente de revisión conjunta (Hz3r + Jair103).
-> Nada de esto está aplicado al proyecto remoto DEV ni PROD. Las migraciones solo se probaron en
-> PostgreSQL 16 local, con un esquema `auth` y `storage` simulado (`supabase/tests/soporte/supabase_shim.sql`);
-> en CI corren sobre PostgreSQL 17.
+> **Estado: VIGENTE.** Aplicado a Supabase DEV el 2026-11-22. PROD aún no.
+> Las pruebas corren en PostgreSQL 16 local, con un esquema `auth` y `storage` simulado
+> (`supabase/tests/soporte/supabase_shim.sql`); en CI corren sobre PostgreSQL 17.
 
 Este documento es la fuente de verdad del contrato entre la app móvil, el panel web y Supabase.
 Si cambias un campo, un estado o una regla aquí, avisa al otro socio antes de tocar código.
@@ -635,12 +634,13 @@ Termina con `TODO OK`. En CI corre en el job `sql` de `.github/workflows/ci.yml`
 
 ---
 
-## 9. Pendiente antes de aprobar este contrato
+## 9. Pendientes
 
 - [ ] Proveedor de SMS para el login por celular (decisión de Hz3r y Jair103; tiene costo por
       mensaje). No cambia el esquema.
 - [ ] Valores reales de los planes (nombres, precios, topes).
-- [ ] Validación sobre Supabase real (rama de Supabase o `supabase start`, con aprobación de ambos
-      socios): el trigger sobre `auth.users`, las políticas de `storage.objects`, el insert en
-      `storage.buckets`, la publicación de Realtime, la carga del seed con `supabase db reset`, y
-      los asesores de seguridad y rendimiento.
+- [x] Validación sobre Supabase real: el trigger sobre `auth.users`, las políticas de
+      `storage.objects`, el bucket `catalogo` y la publicación de Realtime, verificados en DEV el
+      2026-11-22.
+- [ ] Validación sobre Supabase real (rama de Supabase o `supabase start`): la carga del seed con
+      `supabase db reset` y los asesores de seguridad y rendimiento.

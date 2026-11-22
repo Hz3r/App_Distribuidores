@@ -33,7 +33,7 @@ Dos socios trabajan en paralelo:
 - Toda tabla de negocio: `distribuidor_id` y RLS activado.
 - Montos en **céntimos enteros**. Nunca `double` para dinero.
 - Stock y precios se protegen en la BD (`crear_pedido`, con bloqueo de fila), no solo en la app.
-- No aplicar migraciones al remoto (`db push`) sin revisión conjunta.
+- Las migraciones se aplican a DEV cuando `supabase/tests/run.sh` y CI pasan. No hace falta la aprobación del otro socio; avísale en el PR.
 - Cambios de BD → actualizar `docs/contrato.md` en el mismo cambio.
 
 ## Secretos
@@ -44,7 +44,7 @@ Dos socios trabajan en paralelo:
 
 ## Trabajo entre socios
 
-- **No toques el área del otro socio sin avisar.** Ver `.github/CODEOWNERS`.
+- **Si tocas el área del otro socio, avísale en el PR.** No hace falta esperar su aprobación para fusionar. Ver `.github/CODEOWNERS`.
 - Si un cambio en `packages/core` afecta a las dos apps, avisa a los dos.
 - Ramas: `main` protegida. Trabaja en `feature/`, `fix/` o `chore/`. Nunca commit directo en `main`.
 

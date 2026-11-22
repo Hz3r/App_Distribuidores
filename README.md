@@ -144,7 +144,8 @@ En CI corren en el job `sql` (Postgres 17). Detalle en [docs/contrato.md](docs/c
 ### Proyecto DEV
 
 - Ref: `srsrgkwkbhhpdhaeiqyt`
-- **Aún no aplicar migraciones al remoto** (`supabase db push`) sin revisión de ambos socios.
+- Las migraciones `20261122…` ya están aplicadas en DEV. Las nuevas se aplican (`supabase db push`)
+  cuando pasan `supabase/tests/run.sh` y CI.
 
 ```bash
 supabase login                                          # lo ejecuta cada socio
@@ -165,4 +166,4 @@ Para activarlas, cada socio debe:
 
 ## Flujo de trabajo
 
-Ramas cortas desde `main`, Pull Request, 1 aprobación del otro socio. Ver [docs/flujo-git.md](docs/flujo-git.md).
+Ramas cortas desde `main` y Pull Request. La aprobación del otro socio es opcional. Ver [docs/flujo-git.md](docs/flujo-git.md).

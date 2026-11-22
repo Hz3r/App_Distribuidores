@@ -1,7 +1,8 @@
-# Propietarios por área. Cada PR requiere la aprobación del dueño del área.
+# Propietarios por área. GitHub pide revisión al dueño del área en cada PR,
+# pero su aprobación no es obligatoria para fusionar.
 # Regla: la última coincidencia gana.
 
-# Por defecto: ambos socios revisan cualquier cambio.
+# Por defecto: se pide revisión a ambos socios en cualquier cambio.
 *                         @Hz3r @Jair103
 
 # Monorepo y configuración compartida.

@@ -16,7 +16,7 @@ supabase/
   migrations/    Esquema de BD (SQL versionado)
   functions/     Edge Functions
   seed.sql       Datos de prueba para local y DEV
-  tests/         Pruebas SQL (crear_pedido, RLS)
+  tests/         Pruebas SQL (reglas de negocio, RLS y permisos)
 docs/            Arquitectura, flujo de Git y contrato de datos
 env/             Entornos (los reales están ignorados por git)
 ```
@@ -114,6 +114,7 @@ También puedes usar las configuraciones de VS Code: **App móvil (dev)** y **Pa
 | `dart run melos run run:movil` | Ejecuta la app móvil (DEV) |
 | `dart run melos run run:web` | Ejecuta el panel web (DEV) |
 | `dart run melos run db:reset` | Reinicia la BD local de Supabase (`supabase db reset`) |
+| `dart run melos run db:test` | Corre las pruebas SQL (`bash supabase/tests/run.sh`) |
 
 ## Supabase
 
@@ -126,11 +127,19 @@ supabase start
 dart run melos run db:reset      # aplica migraciones y seed
 ```
 
-Pruebas SQL de `crear_pedido` y RLS (sobre la BD local, en transacción que se revierte):
+### Pruebas SQL
+
+Solo requieren PostgreSQL (16 o 17) y `psql`; no hacen falta Docker ni Supabase CLI. Aplican las
+migraciones sobre una base temporal (`distribuidores_test`), corren las pruebas y al final cargan
+el seed. Usan `PGHOST`, `PGPORT`, `PGUSER` y `PGPASSWORD` del entorno y terminan con `TODO OK`.
 
 ```bash
-psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/crear_pedido_test.sql
+bash supabase/tests/run.sh       # todo: migraciones, pruebas y seed
+bash supabase/tests/run.sh 3     # solo las primeras 3 migraciones y sus pruebas
+dart run melos run db:test       # igual que la primera línea
 ```
+
+En CI corren en el job `sql` (Postgres 17). Detalle en [docs/contrato.md](docs/contrato.md), sección 8.
 
 ### Proyecto DEV
 

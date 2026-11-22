@@ -6,8 +6,8 @@ Este archivo lo leen las sesiones de Claude Code. Sigue estas reglas en cada cam
 
 SaaS de pedidos B2B para distribuidores. Piloto: distribuidor de licores.
 Dos socios trabajan en paralelo:
-- **Hz3r**: `apps/app_movil` (cliente y repartidor)
-- **Jair103**: `supabase/` y `apps/panel_web` (BD, funciones, panel del distribuidor)
+- **Hz3r**: `apps/app_movil` (cliente y repartidor) y `supabase/` (BD, funciones)
+- **Jair103**: `apps/panel_web` (panel del distribuidor)
 - `packages/core` y archivos raíz: los dos.
 
 ## Stack (no cambiar sin acuerdo de ambos)

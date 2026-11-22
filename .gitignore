@@ -67,3 +67,7 @@ firebase_options.dart
 
 # Artefactos de build en cualquier paquete
 **/build/
+
+# Supabase CLI (estado local)
+supabase/.temp/
+supabase/.branches/

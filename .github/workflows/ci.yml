@@ -52,3 +52,35 @@ jobs:
       - name: Build web del panel (con entorno de ejemplo)
         working-directory: apps/panel_web
         run: flutter build web --dart-define-from-file=../../env/dev.example.json
+
+  sql:
+    name: Pruebas SQL (Postgres 17)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Migraciones, pruebas SQL y carga del seed. psql viene en ubuntu-latest.
+      - name: Pruebas SQL
+        run: bash supabase/tests/run.sh

@@ -10,6 +10,7 @@ AQUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUPABASE="$(dirname "$AQUI")"
 BD=distribuidores_test
 PSQL=(psql -X -q -v ON_ERROR_STOP=1)
+export PGUSER="${PGUSER:-postgres}"
 
 if [ $# -ge 1 ]; then
   N="$1"
@@ -28,7 +29,7 @@ export PGDATABASE=$BD
 PGOPTIONS="-c client_min_messages=error" "${PSQL[@]}" -f "$AQUI/soporte/supabase_shim.sql" >/dev/null
 "${PSQL[@]}" -f "$AQUI/soporte/ayudas.sql" >/dev/null
 
-shopt -s nullglob
+shopt -s nullglob extglob
 i=0
 for m in "$SUPABASE"/migrations/*.sql; do
   i=$((i + 1))
@@ -42,7 +43,8 @@ if [ "$CON_SEED" = 1 ]; then
   "${PSQL[@]}" -f "$SUPABASE/seed.sql" >/dev/null
 fi
 
-for t in "$AQUI"/[0-9][0-9]_*_test.sql "$AQUI"/[0-9][0-9]_*_test.sh; do
+# Un solo glob: .sql y .sh se ejecutan intercalados por orden de nombre (NN).
+for t in "$AQUI"/[0-9][0-9]_*_test.@(sql|sh); do
   nombre="$(basename "$t")"
   nn=$((10#${nombre:0:2}))
   if [ -n "$N" ] && [ "$nn" -gt "$N" ]; then continue; fi

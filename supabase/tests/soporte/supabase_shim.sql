@@ -57,6 +57,11 @@ create table storage.objects (
 );
 alter table storage.objects enable row level security;
 
+-- Como en Supabase real: los roles de la API tienen privilegios de tabla en
+-- storage; el acceso efectivo lo deciden las políticas RLS.
+grant select, insert, update, delete on storage.objects, storage.buckets
+  to anon, authenticated, service_role;
+
 create function storage.foldername(name text) returns text[]
 language sql immutable
 as $$

@@ -550,6 +550,12 @@ begin
     raise exception 'Se requiere una sesión' using errcode = '42501';
   end if;
 
+  -- Serializa los canjes de una misma cuenta: sin esto, varias llamadas en
+  -- paralelo leerían el conteo antes de que ninguna registre su intento y
+  -- todas pasarían el freno. Clave (1, hash del uid): el 1 reserva el espacio
+  -- de claves de este freno frente a otros usos de bloqueos consultivos.
+  perform pg_advisory_xact_lock(1, hashtext(v_uid::text));
+
   if (select count(*) from public.intentos_canje i
       where i.perfil_id = v_uid
         and not i.exitoso
@@ -626,6 +632,12 @@ begin
   perform 1 from public.distribuidores d where d.id = v_distribuidor for update;
   select * into v_m from public.membresias m where m.id = p_membresia_id for update;
 
+  -- Revalida con las filas ya bloqueadas: quien llama pudo perder el rol de
+  -- admin (o la membresía desaparecer) mientras esperaba el bloqueo.
+  if not found or not privado.tiene_rol(v_distribuidor, '{admin}') then
+    raise exception 'No puede cambiar esta membresía' using errcode = '42501';
+  end if;
+
   if v_m.rol = 'admin' and v_m.estado = 'activa' and p_estado <> 'activa'
      and privado.otros_admin_activos(v_distribuidor, v_m.id) = 0 then
     raise exception 'El distribuidor se quedaría sin ningún admin activo'
@@ -665,6 +677,12 @@ begin
   perform 1 from public.distribuidores d where d.id = v_distribuidor for update;
   select * into v_m from public.membresias m where m.id = p_membresia_id for update;
 
+  -- Revalida con las filas ya bloqueadas: quien llama pudo perder el rol de
+  -- admin (o la membresía desaparecer) mientras esperaba el bloqueo.
+  if not found or not privado.tiene_rol(v_distribuidor, '{admin}') then
+    raise exception 'No puede cambiar esta membresía' using errcode = '42501';
+  end if;
+
   if p_rol is null
      or p_rol not in ('admin', 'vendedor', 'repartidor')
      or v_m.rol not in ('admin', 'vendedor', 'repartidor') then
@@ -702,7 +720,7 @@ begin
   end if;
 
   insert into public.dispositivos_push (perfil_id, token, plataforma)
-  values (v_uid, p_token, p_plataforma)
+  values (v_uid, trim(p_token), p_plataforma)
   on conflict (token) do update
     set perfil_id = excluded.perfil_id,
         plataforma = excluded.plataforma;

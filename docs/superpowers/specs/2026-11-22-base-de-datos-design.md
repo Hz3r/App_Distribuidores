@@ -1,7 +1,8 @@
 # Diseño de la base de datos completa
 
-> **Estado: PROPUESTA.** Pendiente de aprobación de Hz3r y Jair103.
-> Nada de esto está aplicado a DEV ni PROD. No se escribe SQL hasta aprobar este documento.
+> **Estado: aprobado por Hz3r el 2026-11-22; pendiente de aprobación de Jair103** (incluye el
+> traspaso de `supabase/`).
+> Nada de esto está aplicado a DEV ni PROD.
 
 Fecha: 2026-11-22
 
@@ -260,13 +261,13 @@ Reglas:
 ```
 crear_pedido(
   p_distribuidor_id uuid,
-  p_cliente_id uuid,             -- nulo si llama la propia bodega
-  p_items jsonb,                 -- [{"presentacion_id": "<uuid>", "cantidad": <int>}, ...]
-  p_despacho despacho_pedido,
-  p_condicion_pago condicion_pago,
-  p_metodo_pago metodo_pago,         -- puede ser nulo
-  p_nota text,
-  p_clave_idempotencia uuid
+  p_items jsonb,                         -- [{"presentacion_id": "<uuid>", "cantidad": <int>}, ...]
+  p_clave_idempotencia uuid,
+  p_despacho despacho_pedido,            -- obligatorio
+  p_condicion_pago condicion_pago,       -- obligatorio
+  p_cliente_id uuid default null,        -- nulo si llama la propia bodega
+  p_metodo_pago metodo_pago default null,
+  p_nota text default null
 ) returns uuid
 ```
 

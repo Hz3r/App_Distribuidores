@@ -139,6 +139,39 @@ Map<String, dynamic> _filaPedidoEvento() => <String, dynamic>{
 
 void main() {
   group('Identidad y acceso', () {
+    test('Distribuidor con config_tema vacío usa tema por defecto', () {
+      final distribuidor = Distribuidor.fromJson(<String, dynamic>{
+        ..._filaDistribuidor(),
+        'config_tema': <String, dynamic>{},
+      });
+
+      expect(distribuidor.configTema.nombre, '');
+      expect(distribuidor.configTema.colorPrimario, '#1F3A5F');
+      expect(distribuidor.nombreVisible, 'Licores del Norte');
+    });
+
+    test('Distribuidor.nombreVisible prefiere el nombre del tema', () {
+      final distribuidor = Distribuidor.fromJson(<String, dynamic>{
+        ..._filaDistribuidor(),
+        'nombre': 'Distribuidora Norte S.A.C.',
+      });
+
+      expect(distribuidor.nombreVisible, 'Licores del Norte');
+    });
+
+    test('Membresia con distribuidor de config_tema vacío se lee', () {
+      final membresia = Membresia.fromJson(<String, dynamic>{
+        ..._filaMembresia(rol: 'admin'),
+        'distribuidor': <String, dynamic>{
+          ..._filaDistribuidor(),
+          'config_tema': <String, dynamic>{},
+        },
+      });
+
+      expect(membresia.distribuidor?.configTema.nombre, '');
+      expect(membresia.distribuidor?.nombreVisible, 'Licores del Norte');
+    });
+
     test('Distribuidor lee config_tema del contrato como ConfigTema', () {
       final distribuidor = Distribuidor.fromJson(_filaDistribuidor());
 

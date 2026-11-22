@@ -9,6 +9,8 @@ part 'distribuidor.g.dart';
 /// Distribuidor (tenant), tabla `distribuidores`. Todo dato del negocio pertenece a uno.
 @freezed
 abstract class Distribuidor with _$Distribuidor {
+  const Distribuidor._();
+
   const factory Distribuidor({
     required String id,
     required String nombre,
@@ -25,4 +27,8 @@ abstract class Distribuidor with _$Distribuidor {
 
   factory Distribuidor.fromJson(Map<String, dynamic> json) =>
       _$DistribuidorFromJson(json);
+
+  /// Nombre para mostrar: el del tema si está configurado; si no, el legal.
+  String get nombreVisible =>
+      configTema.nombre.isNotEmpty ? configTema.nombre : nombre;
 }

@@ -20,6 +20,15 @@ void main() {
       expect(theme.useMaterial3, isTrue);
     });
 
+    test('arma un ThemeData con un ConfigTema vacío', () {
+      final theme = ThemeBuilder.desde(
+        ConfigTema.fromJson(<String, dynamic>{}),
+      );
+
+      expect(theme.colorScheme.primary, const Color(0xFF1F3A5F));
+      expect(theme.colorScheme.secondary, const Color(0xFFF2A900));
+    });
+
     test('rechaza colores con formato inválido', () {
       expect(
         () => ThemeBuilder.colorDesdeHex('rojo'),

@@ -233,8 +233,8 @@ return $default(_that.id,_that.nombre,_that.slug,_that.rubro,_that.documento,_th
 /// @nodoc
 @JsonSerializable()
 
-class _Distribuidor implements Distribuidor {
-  const _Distribuidor({required this.id, required this.nombre, required this.slug, this.rubro, this.documento, this.telefono, required this.estado, required this.moneda, required this.zonaHoraria, required this.configTema, required this.creadoEn});
+class _Distribuidor extends Distribuidor {
+  const _Distribuidor({required this.id, required this.nombre, required this.slug, this.rubro, this.documento, this.telefono, required this.estado, required this.moneda, required this.zonaHoraria, required this.configTema, required this.creadoEn}): super._();
   factory _Distribuidor.fromJson(Map<String, dynamic> json) => _$DistribuidorFromJson(json);
 
 @override final  String id;

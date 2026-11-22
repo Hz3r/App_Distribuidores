@@ -7,7 +7,7 @@ part of 'config_tema.dart';
 // **************************************************************************
 
 _ConfigTema _$ConfigTemaFromJson(Map<String, dynamic> json) => _ConfigTema(
-  nombre: json['nombre'] as String,
+  nombre: json['nombre'] as String? ?? '',
   logoUrl: json['logo_url'] as String?,
   colorPrimario: json['color_primario'] as String? ?? '#1F3A5F',
   colorSecundario: json['color_secundario'] as String? ?? '#F2A900',

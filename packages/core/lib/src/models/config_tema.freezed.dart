@@ -218,10 +218,10 @@ return $default(_that.nombre,_that.logoUrl,_that.colorPrimario,_that.colorSecund
 @JsonSerializable()
 
 class _ConfigTema implements ConfigTema {
-  const _ConfigTema({required this.nombre, this.logoUrl, this.colorPrimario = '#1F3A5F', this.colorSecundario = '#F2A900'});
+  const _ConfigTema({this.nombre = '', this.logoUrl, this.colorPrimario = '#1F3A5F', this.colorSecundario = '#F2A900'});
   factory _ConfigTema.fromJson(Map<String, dynamic> json) => _$ConfigTemaFromJson(json);
 
-@override final  String nombre;
+@override@JsonKey() final  String nombre;
 @override final  String? logoUrl;
 @override@JsonKey() final  String colorPrimario;
 @override@JsonKey() final  String colorSecundario;

@@ -42,6 +42,7 @@ Migraciones, en orden (cada una pasa sus pruebas sin las siguientes):
 | 3 | `supabase/migrations/20261122120000_pedidos.sql` | Pedidos, líneas, eventos, crédito de la bodega, Realtime |
 | 4 | `supabase/migrations/20261122130000_cobros.sql` | Pagos de pedidos |
 | 5 | `supabase/migrations/20261122140000_plataforma.sql` | Planes, suscripciones, alta de distribuidores |
+| 6 | `supabase/migrations/20261122150000_ajustes_post_revision.sql` | Ajustes tras la revisión: catálogo visible para cliente y repartidor, `execute` de `public.rls_auto_enable()` |
 
 ### Tipos (enums)
 
@@ -124,6 +125,16 @@ Reglas de stock:
 - Catálogo y listas se desactivan (`activo = false`), no se borran: los pedidos los referencian.
   Solo `precios_volumen` y `precios_lista` admiten `delete` (del admin).
 - Una lista de precios inactiva no es visible para el cliente ni se usa al calcular el precio.
+- **Visibilidad para cliente y repartidor** (migración 6): solo ven lo que se puede pedir.
+  - `categorias`: las activas.
+  - `productos`: activos y con su categoría activa (un producto sin categoría basta con que esté
+    activo).
+  - `presentaciones`: activas y de un producto visible según la regla anterior.
+  - `precios_volumen` y `precios_lista`: solo los de presentaciones visibles; de `precios_lista`,
+    además, solo los de la lista activa de su bodega (el repartidor no ve ninguno).
+  - Admin, vendedor y Super Admin ven todo, activo o no. Desactivar una categoría o un producto
+    oculta en cascada sus presentaciones y precios a las bodegas, y `crear_pedido` los rechaza
+    con `P0002`.
 
 **Imágenes (Storage):** bucket `catalogo`, de lectura pública por URL, con rutas
 `<distribuidor_id>/...`. Solo el admin de ese distribuidor sube, reemplaza, borra (y lista) dentro
@@ -198,6 +209,8 @@ Reglas:
 | `mi_cliente_en(p_distribuidor uuid)` | id de su bodega activa en ese distribuidor, o nulo | definer; en políticas |
 | `comparte_distribuidor_como_personal(p_perfil uuid)` | `true` si quien llama es personal activo de un distribuidor donde `p_perfil` tiene membresía | definer; en políticas de `perfiles` |
 | `mi_lista_en(p_distribuidor uuid)` | lista de precios **activa** de su bodega, o nulo | definer; en políticas |
+| `producto_visible(p_producto uuid)` | `true` si el producto está activo y su categoría (si tiene) también | definer; en políticas (migración 6) |
+| `presentacion_visible(p_presentacion uuid)` | `true` si la presentación está activa y su producto es visible | definer; en políticas (migración 6) |
 | `uuid_o_nulo(p_texto text)` | el texto como `uuid`, o nulo si no tiene forma de uuid | en políticas de Storage y en `crear_pedido` |
 | `otros_admin_activos(p_distribuidor uuid, p_excluir uuid)` | cuántos admin activos quedan sin contar una membresía | interna (regla del último admin) |
 | `generar_codigo_invitacion()` | código de 8 caracteres | interna; ver `crear_invitacion` |
@@ -215,6 +228,10 @@ ejecutar las marcadas "en políticas"; las internas solo las llaman funciones `s
 La seguridad se valida contra `membresias`, no contra el token: una bodega que canjea un código ve el
 catálogo al instante, sin cerrar sesión.
 
+`public.rls_auto_enable()` no es nuestra: la crea Supabase (security definer, la usa un event
+trigger) y no existe en el Postgres local ni en CI. La migración 6, si existe, le revoca `execute`
+a `public`, `anon` y `authenticated` (aviso del asesor de seguridad); no la borra ni la modifica.
+
 ### Matriz de permisos (RLS y grants)
 
 Las columnas Admin, Vendedor, Repartidor y Cliente aplican solo dentro del distribuidor donde la
@@ -229,10 +246,10 @@ las funciones de la sección 3.
 | `membresias` | lee todas; estado, rol y bodega por funciones | lee todas | lee la suya | lee la suya | lee todas |
 | `clientes_negocio` | lee, crea y edita (con lista y crédito); sin `delete` | lee, crea y edita, sin lista ni crédito | lee las de sus pedidos asignados | lee la suya | lee todas |
 | `invitaciones` | lee todas; crea y revoca por funciones | lee, crea y revoca las de rol `cliente` | no | no | lee todas; crea y revoca en cualquiera |
-| `categorias`, `productos`, `presentaciones` | lee todo; crea y edita por columnas (sin stock, sin `delete`) | lee todo | lee solo activos | lee solo activos | lee todo |
-| `precios_volumen` | lee; crea, edita y borra | lee | lee | lee | lee |
+| `categorias`, `productos`, `presentaciones` | lee todo; crea y edita por columnas (sin stock, sin `delete`) | lee todo | lee solo lo visible (sección 2, catálogo) | lee solo lo visible (sección 2, catálogo) | lee todo |
+| `precios_volumen` | lee; crea, edita y borra | lee | lee los de presentaciones visibles | lee los de presentaciones visibles | lee |
 | `listas_precios` | lee; crea y edita | lee | no | lee su lista si está activa | lee |
-| `precios_lista` | lee; crea, edita y borra | lee | no | lee los de su lista si está activa | lee |
+| `precios_lista` | lee; crea, edita y borra | lee | no | lee los de su lista si está activa, de presentaciones visibles | lee |
 | `movimientos_stock` | lee; escribe por funciones | lee | no | no | lee |
 | `pedidos`, `pedido_items`, `pedido_eventos` | lee todos; escribe por funciones | lee todos; escribe por funciones | lee los asignados a él mientras sea repartidor activo | lee los de su bodega | lee todos |
 | `pagos` | lee todos; registra y anula por funciones | lee todos; registra por funciones | lee y registra los de sus pedidos asignados | lee los de su bodega | lee todos |
@@ -630,6 +647,7 @@ Termina con `TODO OK`. En CI corre en el job `sql` de `.github/workflows/ci.yml`
 | `03_concurrencia_test.sh` | Dos pedidos simultáneos por el mismo stock; reintento simultáneo; permiso perdido mientras se espera el bloqueo de la bodega |
 | `04_cobros_test.sql` | Pagos, anulación, cancelación con pagos |
 | `05_plataforma_test.sql` | Planes, suscripciones, alta y estado de distribuidores |
+| `06_ajustes_test.sql` | Catálogo visible para cliente y repartidor; `execute` de `public.rls_auto_enable()` si existe |
 | `06_seguridad_test.sql` | Barrido: RLS, grants, `search_path`, políticas, montos `bigint` |
 
 ---

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:core/core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -99,6 +100,24 @@ class ControlAcceso extends _$ControlAcceso {
         .guardarDistribuidorPreferido(distribuidorId);
   }
 
+  /// Cierra la sesión con el cliente de `core`. Devuelve `false` si falló;
+  /// el error se registra y no se propaga. Las pruebas lo sobreescriben con
+  /// un controlador falso para no tocar `Supabase.instance`.
+  Future<bool> cerrarSesion() async {
+    try {
+      await supabase.auth.signOut();
+      return true;
+    } catch (e, st) {
+      developer.log(
+        'No se pudo cerrar la sesión.',
+        name: 'control_acceso',
+        error: e,
+        stackTrace: st,
+      );
+      return false;
+    }
+  }
+
   Future<void> _cargar() async {
     final carga = ++_carga;
     final repositorio = ref.read(membresiasRepositorioProvider);
@@ -106,10 +125,17 @@ class ControlAcceso extends _$ControlAcceso {
     try {
       final todas = await repositorio.listarMias();
       resultado = accesoDesde(todas, repositorio.distribuidorPreferido());
-    } catch (_) {
+    } catch (e, st) {
+      // La causa puede ser la red, un 401, un error de PostgREST o de parseo:
+      // se registra completa y a la persona se le da un mensaje neutro.
+      developer.log(
+        'No se pudieron leer las membresías.',
+        name: 'control_acceso',
+        error: e,
+        stackTrace: st,
+      );
       resultado = const ErrorAcceso(
-        'No se pudieron leer tus accesos. Revisa tu conexión e inténtalo '
-        'de nuevo.',
+        'No pudimos cargar tu acceso. Inténtalo de nuevo.',
       );
     }
     // Si la sesión cambió (el provider se reconstruyó) o empezó otra carga,

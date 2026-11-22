@@ -112,11 +112,23 @@ void main() {
   test('con sesión y una membresía de cliente pasa por Cargando y termina '
       'en ConAcceso con esa activa', () async {
     final cliente = membresia('d1');
-    repositorio.membresias = [cliente];
+    final respuesta = Completer<List<Membresia>>();
+    repositorio.respuesta = respuesta;
+    // Solo cuentan los estados a partir de la emisión de la sesión. El
+    // `Cargando` de la emisión es la misma constante que el inicial, así que
+    // Riverpod no avisa al listener: se lee el estado mientras la lectura de
+    // membresías sigue pendiente y otra vez cuando termina.
+    final desdeEmision = <Acceso>[];
 
     await emitir(true);
+    expect(repositorio.lecturas, 1);
+    desdeEmision.add(leer());
 
-    expect(estados.whereType<Cargando>(), isNotEmpty);
+    respuesta.complete([cliente]);
+    await pumpEventQueue();
+    desdeEmision.add(leer());
+
+    expect(desdeEmision.map((e) => e.runtimeType), [Cargando, ConAcceso]);
     final acceso = leer();
     expect(acceso, isA<ConAcceso>());
     acceso as ConAcceso;
@@ -129,7 +141,14 @@ void main() {
     repositorio.error = Exception('sin red');
 
     await emitir(true);
-    expect(leer(), isA<ErrorAcceso>());
+    expect(
+      leer(),
+      isA<ErrorAcceso>().having(
+        (e) => e.mensaje,
+        'mensaje',
+        'No pudimos cargar tu acceso. Inténtalo de nuevo.',
+      ),
+    );
 
     repositorio
       ..error = null

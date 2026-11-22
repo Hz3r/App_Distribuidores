@@ -1,8 +1,8 @@
-import 'package:core/core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../domain/acceso.dart';
+import 'cerrar_sesion.dart';
 import 'control_acceso.dart';
 
 /// Se muestra si no se pudieron leer las membresías.
@@ -14,7 +14,7 @@ class ErrorAccesoScreen extends ConsumerWidget {
     final acceso = ref.watch(controlAccesoProvider);
     final mensaje = acceso is ErrorAcceso
         ? acceso.mensaje
-        : 'No se pudieron leer tus accesos.';
+        : 'No pudimos cargar tu acceso.';
 
     return Scaffold(
       appBar: AppBar(title: const Text('Error')),
@@ -33,7 +33,7 @@ class ErrorAccesoScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 8),
               TextButton(
-                onPressed: () => supabase.auth.signOut(),
+                onPressed: () => cerrarSesionConAviso(context, ref),
                 child: const Text('Cerrar sesión'),
               ),
             ],

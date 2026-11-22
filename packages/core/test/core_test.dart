@@ -3,53 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('Serialización de modelos', () {
-    test('Producto ida y vuelta con snake_case', () {
-      final json = <String, dynamic>{
-        'id': 'p1',
-        'distribuidor_id': 'd1',
-        'categoria_id': 'c1',
-        'nombre': 'Ron Cartavio 7 años',
-        'activo': true,
-      };
-
-      final producto = Producto.fromJson(json);
-
-      expect(producto.distribuidorId, 'd1');
-      expect(producto.nombre, 'Ron Cartavio 7 años');
-      expect(producto.toJson()['categoria_id'], 'c1');
-    });
-
-    test('Pedido con estado en_camino se lee desde la BD', () {
-      final pedido = Pedido.fromJson(<String, dynamic>{
-        'id': 'ped1',
-        'distribuidor_id': 'd1',
-        'cliente_id': 'cli1',
-        'estado': 'en_camino',
-        'total_centimos': 25000,
-        'creado_en': '2026-11-17T10:00:00Z',
-        'items': <dynamic>[],
-      });
-
-      expect(pedido.estado, EstadoPedido.enCamino);
-      expect(pedido.toJson()['estado'], 'en_camino');
-      expect(pedido.totalCentimos, 25000);
-    });
-
-    test('Presentacion six_pack mapea desde six_pack', () {
-      final presentacion = Presentacion.fromJson(<String, dynamic>{
-        'id': 'pr1',
-        'producto_id': 'p1',
-        'tipo': 'six_pack',
-        'nombre': 'Six pack 650 ml',
-        'precio_base_centimos': 4200,
-        'stock': 12,
-      });
-
-      expect(presentacion.tipo, TipoPresentacion.sixPack);
-      expect(presentacion.unidadesPorPresentacion, 1);
-    });
-  });
+  // Las pruebas de serialización de modelos están en modelos_test.dart.
 
   group('ThemeBuilder', () {
     test('arma un ThemeData desde ConfigTema con colores del distribuidor', () {

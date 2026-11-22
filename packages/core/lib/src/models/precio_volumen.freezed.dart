@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$PrecioVolumen {
 
- String get id; String get presentacionId; int get cantidadMinima; int get precioCentimos;
+ String get id; String get distribuidorId; String get presentacionId; int get cantidadMinima; int get precioCentimos; DateTime get creadoEn;
 /// Create a copy of PrecioVolumen
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -30,20 +30,20 @@ $PrecioVolumenCopyWith<PrecioVolumen> get copyWith => _$PrecioVolumenCopyWithImp
 @override
 bool operator ==(Object other) {
   final _this = this as PrecioVolumen;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PrecioVolumen&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.presentacionId, _this.presentacionId) || other.presentacionId == _this.presentacionId)&&(identical(other.cantidadMinima, _this.cantidadMinima) || other.cantidadMinima == _this.cantidadMinima)&&(identical(other.precioCentimos, _this.precioCentimos) || other.precioCentimos == _this.precioCentimos));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PrecioVolumen&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.distribuidorId, _this.distribuidorId) || other.distribuidorId == _this.distribuidorId)&&(identical(other.presentacionId, _this.presentacionId) || other.presentacionId == _this.presentacionId)&&(identical(other.cantidadMinima, _this.cantidadMinima) || other.cantidadMinima == _this.cantidadMinima)&&(identical(other.precioCentimos, _this.precioCentimos) || other.precioCentimos == _this.precioCentimos)&&(identical(other.creadoEn, _this.creadoEn) || other.creadoEn == _this.creadoEn));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as PrecioVolumen;
-  return Object.hash(runtimeType,_this.id,_this.presentacionId,_this.cantidadMinima,_this.precioCentimos);
+  return Object.hash(runtimeType,_this.id,_this.distribuidorId,_this.presentacionId,_this.cantidadMinima,_this.precioCentimos,_this.creadoEn);
 }
 
 @override
 String toString() {
   final _this = this as PrecioVolumen;
-  return 'PrecioVolumen(id: ${_this.id}, presentacionId: ${_this.presentacionId}, cantidadMinima: ${_this.cantidadMinima}, precioCentimos: ${_this.precioCentimos})';
+  return 'PrecioVolumen(id: ${_this.id}, distribuidorId: ${_this.distribuidorId}, presentacionId: ${_this.presentacionId}, cantidadMinima: ${_this.cantidadMinima}, precioCentimos: ${_this.precioCentimos}, creadoEn: ${_this.creadoEn})';
 }
 
 
@@ -54,7 +54,7 @@ abstract mixin class $PrecioVolumenCopyWith<$Res>  {
   factory $PrecioVolumenCopyWith(PrecioVolumen value, $Res Function(PrecioVolumen) _then) = _$PrecioVolumenCopyWithImpl;
 @useResult
 $Res call({
- String id, String presentacionId, int cantidadMinima, int precioCentimos
+ String id, String distribuidorId, String presentacionId, int cantidadMinima, int precioCentimos, DateTime creadoEn
 });
 
 
@@ -71,13 +71,15 @@ class _$PrecioVolumenCopyWithImpl<$Res>
 
 /// Create a copy of PrecioVolumen
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? presentacionId = null,Object? cantidadMinima = null,Object? precioCentimos = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? distribuidorId = null,Object? presentacionId = null,Object? cantidadMinima = null,Object? precioCentimos = null,Object? creadoEn = null,}) {
   return _then(PrecioVolumen(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,distribuidorId: null == distribuidorId ? _self.distribuidorId : distribuidorId // ignore: cast_nullable_to_non_nullable
 as String,presentacionId: null == presentacionId ? _self.presentacionId : presentacionId // ignore: cast_nullable_to_non_nullable
 as String,cantidadMinima: null == cantidadMinima ? _self.cantidadMinima : cantidadMinima // ignore: cast_nullable_to_non_nullable
 as int,precioCentimos: null == precioCentimos ? _self.precioCentimos : precioCentimos // ignore: cast_nullable_to_non_nullable
-as int,
+as int,creadoEn: null == creadoEn ? _self.creadoEn : creadoEn // ignore: cast_nullable_to_non_nullable
+as DateTime,
   ));
 }
 
@@ -162,10 +164,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String presentacionId,  int cantidadMinima,  int precioCentimos)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String distribuidorId,  String presentacionId,  int cantidadMinima,  int precioCentimos,  DateTime creadoEn)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PrecioVolumen() when $default != null:
-return $default(_that.id,_that.presentacionId,_that.cantidadMinima,_that.precioCentimos);case _:
+return $default(_that.id,_that.distribuidorId,_that.presentacionId,_that.cantidadMinima,_that.precioCentimos,_that.creadoEn);case _:
   return orElse();
 
 }
@@ -183,10 +185,10 @@ return $default(_that.id,_that.presentacionId,_that.cantidadMinima,_that.precioC
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String presentacionId,  int cantidadMinima,  int precioCentimos)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String distribuidorId,  String presentacionId,  int cantidadMinima,  int precioCentimos,  DateTime creadoEn)  $default,) {final _that = this;
 switch (_that) {
 case _PrecioVolumen():
-return $default(_that.id,_that.presentacionId,_that.cantidadMinima,_that.precioCentimos);case _:
+return $default(_that.id,_that.distribuidorId,_that.presentacionId,_that.cantidadMinima,_that.precioCentimos,_that.creadoEn);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -203,10 +205,10 @@ return $default(_that.id,_that.presentacionId,_that.cantidadMinima,_that.precioC
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String presentacionId,  int cantidadMinima,  int precioCentimos)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String distribuidorId,  String presentacionId,  int cantidadMinima,  int precioCentimos,  DateTime creadoEn)?  $default,) {final _that = this;
 switch (_that) {
 case _PrecioVolumen() when $default != null:
-return $default(_that.id,_that.presentacionId,_that.cantidadMinima,_that.precioCentimos);case _:
+return $default(_that.id,_that.distribuidorId,_that.presentacionId,_that.cantidadMinima,_that.precioCentimos,_that.creadoEn);case _:
   return null;
 
 }
@@ -218,13 +220,15 @@ return $default(_that.id,_that.presentacionId,_that.cantidadMinima,_that.precioC
 @JsonSerializable()
 
 class _PrecioVolumen implements PrecioVolumen {
-  const _PrecioVolumen({required this.id, required this.presentacionId, required this.cantidadMinima, required this.precioCentimos});
+  const _PrecioVolumen({required this.id, required this.distribuidorId, required this.presentacionId, required this.cantidadMinima, required this.precioCentimos, required this.creadoEn});
   factory _PrecioVolumen.fromJson(Map<String, dynamic> json) => _$PrecioVolumenFromJson(json);
 
 @override final  String id;
+@override final  String distribuidorId;
 @override final  String presentacionId;
 @override final  int cantidadMinima;
 @override final  int precioCentimos;
+@override final  DateTime creadoEn;
 
 /// Create a copy of PrecioVolumen
 /// with the given fields replaced by the non-null parameter values.
@@ -239,18 +243,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PrecioVolumen&&(identical(other.id, id) || other.id == id)&&(identical(other.presentacionId, presentacionId) || other.presentacionId == presentacionId)&&(identical(other.cantidadMinima, cantidadMinima) || other.cantidadMinima == cantidadMinima)&&(identical(other.precioCentimos, precioCentimos) || other.precioCentimos == precioCentimos));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PrecioVolumen&&(identical(other.id, id) || other.id == id)&&(identical(other.distribuidorId, distribuidorId) || other.distribuidorId == distribuidorId)&&(identical(other.presentacionId, presentacionId) || other.presentacionId == presentacionId)&&(identical(other.cantidadMinima, cantidadMinima) || other.cantidadMinima == cantidadMinima)&&(identical(other.precioCentimos, precioCentimos) || other.precioCentimos == precioCentimos)&&(identical(other.creadoEn, creadoEn) || other.creadoEn == creadoEn));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hash(runtimeType,id,presentacionId,cantidadMinima,precioCentimos);
+    return Object.hash(runtimeType,id,distribuidorId,presentacionId,cantidadMinima,precioCentimos,creadoEn);
 }
 
 @override
 String toString() {
-    return 'PrecioVolumen(id: $id, presentacionId: $presentacionId, cantidadMinima: $cantidadMinima, precioCentimos: $precioCentimos)';
+    return 'PrecioVolumen(id: $id, distribuidorId: $distribuidorId, presentacionId: $presentacionId, cantidadMinima: $cantidadMinima, precioCentimos: $precioCentimos, creadoEn: $creadoEn)';
 }
 
 
@@ -261,7 +265,7 @@ abstract mixin class _$PrecioVolumenCopyWith<$Res> implements $PrecioVolumenCopy
   factory _$PrecioVolumenCopyWith(_PrecioVolumen value, $Res Function(_PrecioVolumen) _then) = __$PrecioVolumenCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String presentacionId, int cantidadMinima, int precioCentimos
+ String id, String distribuidorId, String presentacionId, int cantidadMinima, int precioCentimos, DateTime creadoEn
 });
 
 
@@ -278,13 +282,15 @@ class __$PrecioVolumenCopyWithImpl<$Res>
 
 /// Create a copy of PrecioVolumen
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? presentacionId = null,Object? cantidadMinima = null,Object? precioCentimos = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? distribuidorId = null,Object? presentacionId = null,Object? cantidadMinima = null,Object? precioCentimos = null,Object? creadoEn = null,}) {
   return _then(_PrecioVolumen(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,distribuidorId: null == distribuidorId ? _self.distribuidorId : distribuidorId // ignore: cast_nullable_to_non_nullable
 as String,presentacionId: null == presentacionId ? _self.presentacionId : presentacionId // ignore: cast_nullable_to_non_nullable
 as String,cantidadMinima: null == cantidadMinima ? _self.cantidadMinima : cantidadMinima // ignore: cast_nullable_to_non_nullable
 as int,precioCentimos: null == precioCentimos ? _self.precioCentimos : precioCentimos // ignore: cast_nullable_to_non_nullable
-as int,
+as int,creadoEn: null == creadoEn ? _self.creadoEn : creadoEn // ignore: cast_nullable_to_non_nullable
+as DateTime,
   ));
 }
 

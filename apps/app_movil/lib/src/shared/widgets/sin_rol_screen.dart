@@ -1,14 +1,15 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Se muestra si el usuario inició sesión pero no tiene rol asignado.
+/// Se muestra si la persona inició sesión pero no tiene ninguna membresía
+/// útil en la app móvil.
 class SinRolScreen extends StatelessWidget {
   const SinRolScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Cuenta sin rol')),
+      appBar: AppBar(title: const Text('Sin distribuidor')),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -16,8 +17,8 @@ class SinRolScreen extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                'Tu cuenta aún no tiene un rol asignado. '
-                'Contacta al distribuidor.',
+                'Tu cuenta todavía no está vinculada a ningún distribuidor. '
+                'Pídele a tu distribuidor un código de invitación.',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),

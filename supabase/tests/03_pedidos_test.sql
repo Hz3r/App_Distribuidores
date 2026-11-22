@@ -457,4 +457,351 @@ where id = '00000000-0000-0000-0000-000000000b01';
 -- comprometido 69 (disponible 51); P3 con comprometido 5. Pedidos: 6 en D1
 -- (números 1 a 6) y 1 en D2.
 
+-- ---------------------------------------------------------------------------
+-- 3.40 a 3.63: estados del pedido, repartidor y Realtime.
+-- Cada caso crea sus propios pedidos. Prep = pedido de C1 por PR1 x10 con
+-- despacho reparto; Prec = igual con despacho recojo. Los valores de stock se
+-- comparan contra lo leído justo antes de cada acción.
+-- ---------------------------------------------------------------------------
+\set d1 00000000-0000-0000-0000-000000000d01
+\set p1 00000000-0000-0000-0000-000000000101
+\set a1 00000000-0000-0000-0000-0000000000a1
+\set v1 00000000-0000-0000-0000-0000000000b1
+\set r1 00000000-0000-0000-0000-0000000000e1
+\set c1 00000000-0000-0000-0000-0000000000c1
+\set c2 00000000-0000-0000-0000-0000000000c2
+\set a2 00000000-0000-0000-0000-0000000000a2
+\set pr1x10 '[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 10}]'
+\set pr1x1 '[{"presentacion_id": "00000000-0000-0000-0000-000000000201", "cantidad": 1}]'
+
+-- Más stock de P1 para los pedidos de este bloque.
+select pruebas.como_servicio();
+select privado.aplicar_movimiento_stock(:'p1', 'ingreso', 300, 0, null, 'stock para pruebas');
+
+-- 3.40: recibido → confirmado.
+select pruebas.como(:'c1');
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p40 \gset
+select pruebas.como(:'a1');
+select public.cambiar_estado_pedido(:'p40', 'confirmado');
+select pruebas.afirma(
+  (select estado = 'confirmado' from public.pedidos where id = :'p40')
+  and pruebas.cuenta(format($q$select 1 from public.pedido_eventos where pedido_id = %L$q$, :'p40')) = 2
+  and pruebas.cuenta(format($q$select 1 from public.pedido_eventos
+                               where pedido_id = %L and estado_anterior = 'recibido'
+                                 and estado_nuevo = 'confirmado'
+                                 and hecho_por = '00000000-0000-0000-0000-0000000000a1'$q$,
+                            :'p40')) = 1,
+  '3.40 el admin confirma: estado confirmado y evento desde recibido hecho por A1');
+
+-- 3.41: desde recibido no se salta a entregado ni a en_camino.
+select pruebas.como(:'c1');
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p41 \gset
+select pruebas.como(:'a1');
+select pruebas.espera_error(
+  format($q$select public.cambiar_estado_pedido(%L, 'entregado')$q$, :'p41'),
+  'P0006', '3.41 recibido no pasa directo a entregado');
+select pruebas.espera_error(
+  format($q$select public.cambiar_estado_pedido(%L, 'en_camino')$q$, :'p41'),
+  'P0006', '3.41 recibido no pasa directo a en_camino');
+
+-- 3.42: un pedido de recojo no sale en camino.
+select pruebas.como(:'c1');
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid()) as p42 \gset
+select pruebas.como(:'a1');
+select public.cambiar_estado_pedido(:'p42', 'confirmado');
+select pruebas.espera_error(
+  format($q$select public.cambiar_estado_pedido(%L, 'en_camino')$q$, :'p42'),
+  'P0006', '3.42 un pedido de recojo no pasa a en_camino');
+
+-- 3.43: un pedido de reparto no queda listo para recojo.
+select pruebas.como(:'c1');
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p43 \gset
+select pruebas.como(:'a1');
+select public.cambiar_estado_pedido(:'p43', 'confirmado');
+select pruebas.espera_error(
+  format($q$select public.cambiar_estado_pedido(%L, 'listo_recojo')$q$, :'p43'),
+  'P0006', '3.43 un pedido de reparto no pasa a listo_recojo');
+
+-- 3.44: entregar baja el físico y el comprometido.
+select pruebas.como(:'c1');
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid()) as p44 \gset
+select pruebas.como(:'a1');
+select public.cambiar_estado_pedido(:'p44', 'confirmado');
+select public.cambiar_estado_pedido(:'p44', 'listo_recojo');
+select pruebas.como_servicio();
+select stock_fisico as fis_44, stock_comprometido as com_44
+from public.productos where id = :'p1' \gset
+select pruebas.como(:'a1');
+select public.cambiar_estado_pedido(:'p44', 'entregado');
+select pruebas.como_servicio();
+select pruebas.afirma(
+  (select stock_fisico = :fis_44 - 10 and stock_comprometido = :com_44 - 10
+   from public.productos where id = :'p1'),
+  '3.44 entregar baja 10 el físico y 10 el comprometido de P1');
+select pruebas.afirma(
+  pruebas.cuenta(format($q$select 1 from public.movimientos_stock
+                           where pedido_id = %L and tipo = 'salida'
+                             and delta_fisico = -10 and delta_comprometido = -10
+                             and hecho_por = '00000000-0000-0000-0000-0000000000a1'$q$,
+                        :'p44')) = 1,
+  '3.44 un movimiento salida con ambos deltas en -10');
+select pruebas.afirma(
+  (select estado = 'entregado' and entregado_en is not null and vence_en is null
+   from public.pedidos where id = :'p44')
+  and pruebas.cuenta(format($q$select 1 from public.pedido_eventos where pedido_id = %L$q$, :'p44')) = 4,
+  '3.44 el pedido queda entregado, con entregado_en y un evento por cambio');
+
+-- 3.45: entregado es final.
+select pruebas.como(:'c1');
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid()) as p45 \gset
+select pruebas.como(:'a1');
+select public.cambiar_estado_pedido(:'p45', 'confirmado');
+select public.cambiar_estado_pedido(:'p45', 'listo_recojo');
+select public.cambiar_estado_pedido(:'p45', 'entregado');
+select pruebas.espera_error(
+  format($q$select public.cambiar_estado_pedido(%L, 'cancelado', 'tarde')$q$, :'p45'),
+  'P0006', '3.45 un pedido entregado no se cancela');
+select pruebas.espera_error(
+  format($q$select public.cambiar_estado_pedido(%L, 'entregado')$q$, :'p45'),
+  'P0006', '3.45 un pedido entregado no se entrega de nuevo');
+
+-- 3.46: cancelar exige nota.
+select pruebas.como(:'c1');
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p46 \gset
+select pruebas.como(:'a1');
+select public.cambiar_estado_pedido(:'p46', 'confirmado');
+select pruebas.espera_error(
+  format($q$select public.cambiar_estado_pedido(%L, 'cancelado')$q$, :'p46'),
+  '22023', '3.46 cancelar sin nota');
+select pruebas.espera_error(
+  format($q$select public.cambiar_estado_pedido(%L, 'cancelado', '   ')$q$, :'p46'),
+  '22023', '3.46 cancelar con nota vacía');
+
+-- 3.47: cancelar libera el comprometido.
+select pruebas.como(:'c1');
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p47 \gset
+select pruebas.como(:'a1');
+select public.cambiar_estado_pedido(:'p47', 'confirmado');
+select pruebas.como_servicio();
+select stock_fisico as fis_47, stock_comprometido as com_47
+from public.productos where id = :'p1' \gset
+select pruebas.como(:'a1');
+select public.cambiar_estado_pedido(:'p47', 'cancelado', 'sin stock real');
+select pruebas.como_servicio();
+select pruebas.afirma(
+  (select stock_fisico = :fis_47 and stock_comprometido = :com_47 - 10
+   from public.productos where id = :'p1'),
+  '3.47 cancelar baja 10 el comprometido sin tocar el físico');
+select pruebas.afirma(
+  pruebas.cuenta(format($q$select 1 from public.movimientos_stock
+                           where pedido_id = %L and tipo = 'liberacion'
+                             and delta_fisico = 0 and delta_comprometido = -10$q$,
+                        :'p47')) = 1,
+  '3.47 un movimiento liberacion de -10 al comprometido');
+select pruebas.afirma(
+  (select estado = 'cancelado' and motivo_cancelacion = 'sin stock real'
+   from public.pedidos where id = :'p47')
+  and pruebas.cuenta(format($q$select 1 from public.pedido_eventos
+                               where pedido_id = %L and estado_anterior = 'confirmado'
+                                 and estado_nuevo = 'cancelado' and nota = 'sin stock real'$q$,
+                            :'p47')) = 1,
+  '3.47 se guarda el motivo de cancelación y el evento lleva la nota');
+
+-- 3.48: el cliente cancela su pedido recibido.
+select pruebas.como(:'c1');
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p48 \gset
+select public.cambiar_estado_pedido(:'p48', 'cancelado', 'me equivoqué');
+select pruebas.afirma(
+  (select estado = 'cancelado' and motivo_cancelacion = 'me equivoqué'
+   from public.pedidos where id = :'p48'),
+  '3.48 el cliente cancela su pedido recibido');
+
+-- 3.49: el cliente no cancela un pedido ya confirmado.
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p49 \gset
+select pruebas.como(:'a1');
+select public.cambiar_estado_pedido(:'p49', 'confirmado');
+select pruebas.como(:'c1');
+select pruebas.espera_error(
+  format($q$select public.cambiar_estado_pedido(%L, 'cancelado', 'ya no')$q$, :'p49'),
+  '42501', '3.49 el cliente no cancela un pedido confirmado');
+
+-- 3.50: otra bodega no toca el pedido.
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p50 \gset
+select pruebas.como(:'c2');
+select pruebas.espera_error(
+  format($q$select public.cambiar_estado_pedido(%L, 'cancelado', 'ajeno')$q$, :'p50'),
+  'P0002', '3.50 C2 no cancela el pedido de C1');
+
+-- 3.51: el cliente no confirma su propio pedido.
+select pruebas.como(:'c1');
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p51 \gset
+select pruebas.espera_error(
+  format($q$select public.cambiar_estado_pedido(%L, 'confirmado')$q$, :'p51'),
+  '42501', '3.51 el cliente no confirma su pedido');
+
+-- 3.52: asignar repartidor.
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p52 \gset
+select pruebas.como(:'a1');
+select public.asignar_repartidor(:'p52', :'r1');
+select pruebas.afirma(
+  (select repartidor_id = '00000000-0000-0000-0000-0000000000e1'
+   from public.pedidos where id = :'p52'),
+  '3.52 el admin asigna R1 al pedido');
+select pruebas.como(:'r1');
+select pruebas.afirma(
+  pruebas.cuenta(format($q$select 1 from public.pedidos where id = %L$q$, :'p52')) = 1
+  and pruebas.cuenta(format($q$select 1 from public.pedido_items where pedido_id = %L$q$, :'p52')) = 1
+  and pruebas.cuenta($q$select 1 from public.clientes_negocio
+                        where id = '00000000-0000-0000-0000-000000000b01'$q$) = 1,
+  '3.52 R1 ve el pedido asignado, sus líneas y la bodega 0b01');
+
+-- 3.53: el repartidor no ve ni mueve pedidos que no tiene asignados.
+select pruebas.como(:'c1');
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p53 \gset
+select pruebas.como(:'a1');
+select public.cambiar_estado_pedido(:'p53', 'confirmado');
+select pruebas.como(:'r1');
+select pruebas.afirma(
+  pruebas.cuenta(format($q$select 1 from public.pedidos where id = %L$q$, :'p53')) = 0,
+  '3.53 R1 no ve un pedido que no tiene asignado');
+select pruebas.espera_error(
+  format($q$select public.cambiar_estado_pedido(%L, 'en_camino')$q$, :'p53'),
+  'P0002', '3.53 R1 no cambia el estado de un pedido no asignado');
+
+-- 3.56 a 3.61 van antes que 3.54 y 3.55: esos dejan pedidos de C1
+-- asignados a R1 para siempre (un pedido entregado ya no se desasigna), y
+-- 3.61 necesita que C1 no tenga ninguno.
+
+-- 3.56: solo se asigna repartidor a pedidos de reparto.
+select pruebas.como(:'c1');
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid()) as p56 \gset
+select pruebas.como(:'a1');
+select pruebas.espera_error(
+  format($q$select public.asignar_repartidor(%L, '00000000-0000-0000-0000-0000000000e1')$q$, :'p56'),
+  '22023', '3.56 no se asigna repartidor a un pedido de recojo');
+
+-- 3.57: el asignado debe ser repartidor activo del distribuidor.
+select pruebas.como(:'c1');
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p57 \gset
+select pruebas.como(:'a1');
+select pruebas.espera_error(
+  format($q$select public.asignar_repartidor(%L, '00000000-0000-0000-0000-0000000000b1')$q$, :'p57'),
+  '22023', '3.57 un vendedor no se asigna como repartidor');
+select pruebas.espera_error(
+  format($q$select public.asignar_repartidor(%L, '00000000-0000-0000-0000-0000000000c1')$q$, :'p57'),
+  '22023', '3.57 un cliente no se asigna como repartidor');
+
+-- 3.58: desasignar.
+select public.asignar_repartidor(:'p52', null);
+select pruebas.afirma(
+  (select repartidor_id is null from public.pedidos where id = :'p52'),
+  '3.58 el admin desasigna el repartidor');
+select pruebas.como(:'r1');
+select pruebas.afirma(
+  pruebas.cuenta(format($q$select 1 from public.pedidos where id = %L$q$, :'p52')) = 0,
+  '3.58 tras desasignar, R1 deja de ver el pedido');
+
+-- 3.59: el admin de otro distribuidor no toca pedidos de D1.
+select pruebas.como(:'a2');
+select pruebas.espera_error(
+  format($q$select public.cambiar_estado_pedido(%L, 'confirmado')$q$, :'p52'),
+  'P0002', '3.59 A2 no cambia el estado de un pedido de D1');
+select pruebas.espera_error(
+  format($q$select public.asignar_repartidor(%L, '00000000-0000-0000-0000-0000000000e1')$q$, :'p52'),
+  'P0002', '3.59 A2 no asigna repartidor a un pedido de D1');
+
+-- 3.60: entregar un pedido a crédito fija el vencimiento.
+select pruebas.como(:'c2');
+select public.crear_pedido(:'d1', :'pr1x1', gen_random_uuid(),
+                           p_condicion_pago => 'credito') as p60 \gset
+select pruebas.como(:'a1');
+select public.cambiar_estado_pedido(:'p60', 'confirmado');
+select public.cambiar_estado_pedido(:'p60', 'listo_recojo');
+select public.cambiar_estado_pedido(:'p60', 'entregado');
+select pruebas.afirma(
+  (select vence_en = (now() at time zone 'America/Lima')::date + 15
+   from public.pedidos where id = :'p60'),
+  '3.60 vence_en es hoy en America/Lima más 15 días');
+
+-- 3.61: C1 ve el perfil de R1 solo mientras R1 reparte un pedido suyo.
+select pruebas.como(:'c1');
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p61 \gset
+select pruebas.afirma(
+  pruebas.cuenta($q$select 1 from public.perfiles
+                    where id = '00000000-0000-0000-0000-0000000000e1'$q$) = 0,
+  '3.61 sin asignación C1 no ve el perfil de R1');
+select pruebas.como(:'a1');
+select public.asignar_repartidor(:'p61', :'r1');
+select pruebas.como(:'c1');
+select pruebas.afirma(
+  pruebas.cuenta($q$select 1 from public.perfiles
+                    where id = '00000000-0000-0000-0000-0000000000e1'$q$) = 1,
+  '3.61 con R1 asignado C1 ve su perfil');
+select pruebas.como(:'a1');
+select public.asignar_repartidor(:'p61', null);
+select pruebas.como(:'c1');
+select pruebas.afirma(
+  pruebas.cuenta($q$select 1 from public.perfiles
+                    where id = '00000000-0000-0000-0000-0000000000e1'$q$) = 0,
+  '3.61 al desasignar C1 deja de ver el perfil de R1');
+
+-- 3.54: el repartidor asignado sale en camino y entrega.
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p54 \gset
+select pruebas.como(:'a1');
+select public.cambiar_estado_pedido(:'p54', 'confirmado');
+select public.asignar_repartidor(:'p54', :'r1');
+select pruebas.como(:'r1');
+select public.cambiar_estado_pedido(:'p54', 'en_camino');
+select pruebas.afirma(
+  (select estado = 'en_camino' from public.pedidos where id = :'p54'),
+  '3.54 R1 pasa su pedido a en_camino');
+select public.cambiar_estado_pedido(:'p54', 'entregado');
+select pruebas.afirma(
+  (select estado = 'entregado' from public.pedidos where id = :'p54')
+  and pruebas.cuenta(format($q$select 1 from public.pedido_eventos
+                               where pedido_id = %L
+                                 and hecho_por = '00000000-0000-0000-0000-0000000000e1'$q$,
+                            :'p54')) = 2,
+  '3.54 R1 entrega su pedido; los dos eventos los hizo R1');
+
+-- 3.55: el repartidor no confirma ni cancela.
+select pruebas.como(:'c1');
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p55 \gset
+select pruebas.como(:'a1');
+select public.asignar_repartidor(:'p55', :'r1');
+select pruebas.como(:'r1');
+select pruebas.espera_error(
+  format($q$select public.cambiar_estado_pedido(%L, 'confirmado')$q$, :'p55'),
+  '42501', '3.55 R1 no confirma');
+select pruebas.espera_error(
+  format($q$select public.cambiar_estado_pedido(%L, 'cancelado', 'no llego')$q$, :'p55'),
+  '42501', '3.55 R1 no cancela');
+
+-- 3.62: Realtime publica pedidos y sus eventos.
+select pruebas.como_servicio();
+select pruebas.afirma(
+  (select count(*) = 2 from pg_publication_tables
+   where pubname = 'supabase_realtime' and schemaname = 'public'
+     and tablename in ('pedidos', 'pedido_eventos')),
+  '3.62 supabase_realtime publica pedidos y pedido_eventos');
+
+-- 3.63: el vendedor también confirma y asigna; anon no llama las funciones.
+select pruebas.como(:'c1');
+select public.crear_pedido(:'d1', :'pr1x10', gen_random_uuid(), p_despacho => 'reparto') as p63 \gset
+select pruebas.como(:'v1');
+select public.cambiar_estado_pedido(:'p63', 'confirmado');
+select public.asignar_repartidor(:'p63', :'r1');
+select pruebas.afirma(
+  (select estado = 'confirmado' and repartidor_id = '00000000-0000-0000-0000-0000000000e1'
+   from public.pedidos where id = :'p63'),
+  '3.63 el vendedor confirma y asigna repartidor');
+select pruebas.como_anon();
+select pruebas.espera_error(
+  format($q$select public.cambiar_estado_pedido(%L, 'cancelado', 'x')$q$, :'p63'),
+  '42501', '3.63 anon no cambia estados');
+select pruebas.espera_error(
+  format($q$select public.asignar_repartidor(%L, null)$q$, :'p63'),
+  '42501', '3.63 anon no asigna repartidor');
+select pruebas.como_servicio();
+
 rollback;

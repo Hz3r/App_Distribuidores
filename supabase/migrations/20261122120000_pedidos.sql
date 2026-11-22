@@ -586,3 +586,299 @@ grant execute on function
   public.crear_pedido(uuid, jsonb, uuid, uuid, public.despacho_pedido,
                       public.condicion_pago, public.metodo_pago, text)
   to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Estados del pedido y repartidor
+-- ---------------------------------------------------------------------------
+
+-- Validación extra antes de cancelar un pedido. En este módulo no hace nada:
+-- el módulo de cobros la reemplaza para rechazar la cancelación de pedidos
+-- con pagos sin anular, sin redefinir cambiar_estado_pedido. Uso interno: la
+-- llama cambiar_estado_pedido con el pedido ya bloqueado.
+create function privado.validar_cancelacion(p_pedido uuid) returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  null;
+end $$;
+
+revoke execute on function privado.validar_cancelacion(uuid) from public, anon;
+
+-- true si quien llama puede ver el pedido según la política de pedidos:
+-- admin o vendedor del distribuidor, el repartidor asignado (si sigue siendo
+-- repartidor activo) o la bodega del pedido. Nunca nulo. Uso interno de las
+-- funciones de estados y repartidor.
+create function privado.ve_pedido(
+  p_distribuidor uuid,
+  p_cliente uuid,
+  p_repartidor uuid
+) returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(
+    privado.tiene_rol(p_distribuidor, '{admin,vendedor}')
+    or (p_repartidor = auth.uid() and privado.tiene_rol(p_distribuidor, '{repartidor}'))
+    or p_cliente = privado.mi_cliente_en(p_distribuidor),
+    false)
+$$;
+
+revoke execute on function privado.ve_pedido(uuid, uuid, uuid) from public, anon;
+
+-- Cambia el estado de un pedido (spec 6.3).
+--
+-- Transiciones válidas (cualquier otra, P0006):
+--   recibido     → confirmado | cancelado
+--   confirmado   → en_camino (solo reparto) | listo_recojo (solo recojo) | cancelado
+--   en_camino    → entregado | cancelado
+--   listo_recojo → entregado | cancelado
+--   entregado, cancelado: finales
+--
+-- Quién: admin y vendedor, todas; el repartidor, confirmado → en_camino y
+-- en_camino → entregado en pedidos asignados a él; el cliente, recibido →
+-- cancelado en sus pedidos.
+--
+-- Efecto en el stock: entregar baja físico y comprometido (movimiento
+-- salida) y, si es a crédito, fija vence_en = fecha de entrega en la zona
+-- horaria del distribuidor + plazo de la bodega; cancelar baja el
+-- comprometido (movimiento liberacion) y exige nota, que se guarda en
+-- motivo_cancelacion. Cada cambio inserta un evento con la nota.
+--
+-- Bloqueos: la fila del pedido y luego sus productos por id ascendente (el
+-- mismo orden relativo que crear_pedido, que no bloquea pedidos existentes).
+--
+-- Errores: P0002 pedido inexistente o que quien llama no puede ver (no es
+-- admin o vendedor del distribuidor, ni el repartidor asignado, ni la
+-- bodega del pedido); 22023 estado nulo o cancelación sin nota; P0006
+-- transición no válida; 42501 sin sesión o rol sin permiso para esa
+-- transición.
+create function public.cambiar_estado_pedido(
+  p_pedido_id uuid,
+  p_estado public.estado_pedido,
+  p_nota text default null
+) returns void
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_pedido public.pedidos;
+  v_personal boolean;
+  v_repartidor boolean;
+  v_cliente boolean;
+  v_permitido boolean;
+  v_linea record;
+  v_zona text;
+  v_plazo integer;
+begin
+  if v_uid is null then
+    raise exception 'Se requiere una sesión' using errcode = '42501';
+  end if;
+
+  -- Primera lectura, sin bloqueo: quien no puede ver el pedido no llega a
+  -- bloquear su fila.
+  select * into v_pedido from public.pedidos p where p.id = p_pedido_id;
+
+  if not found
+     or not privado.ve_pedido(v_pedido.distribuidor_id, v_pedido.cliente_id,
+                              v_pedido.repartidor_id) then
+    raise exception 'Pedido inexistente' using errcode = 'P0002';
+  end if;
+
+  -- Primer bloqueo: el pedido.
+  select * into v_pedido from public.pedidos p where p.id = p_pedido_id for update;
+
+  -- Revalida con la fila ya bloqueada: quien llama pudo perder su rol, o el
+  -- pedido cambiar de repartidor o de estado, mientras esperaba el bloqueo.
+  if not privado.ve_pedido(v_pedido.distribuidor_id, v_pedido.cliente_id,
+                           v_pedido.repartidor_id) then
+    raise exception 'Pedido inexistente' using errcode = 'P0002';
+  end if;
+
+  v_personal := privado.tiene_rol(v_pedido.distribuidor_id, '{admin,vendedor}');
+  v_repartidor := coalesce(v_pedido.repartidor_id = v_uid, false)
+                  and privado.tiene_rol(v_pedido.distribuidor_id, '{repartidor}');
+  v_cliente := coalesce(
+    v_pedido.cliente_id = privado.mi_cliente_en(v_pedido.distribuidor_id), false);
+
+  if p_estado is null then
+    raise exception 'Indique el estado nuevo' using errcode = '22023';
+  end if;
+
+  if not (
+    (v_pedido.estado = 'recibido' and p_estado in ('confirmado', 'cancelado'))
+    or (v_pedido.estado = 'confirmado'
+        and (p_estado = 'cancelado'
+             or (p_estado = 'en_camino' and v_pedido.despacho = 'reparto')
+             or (p_estado = 'listo_recojo' and v_pedido.despacho = 'recojo')))
+    or (v_pedido.estado in ('en_camino', 'listo_recojo')
+        and p_estado in ('entregado', 'cancelado'))
+  ) then
+    raise exception 'No se puede pasar de % a %', v_pedido.estado, p_estado
+      using errcode = 'P0006';
+  end if;
+
+  v_permitido := v_personal
+    or (v_repartidor
+        and ((v_pedido.estado = 'confirmado' and p_estado = 'en_camino')
+             or (v_pedido.estado = 'en_camino' and p_estado = 'entregado')))
+    or (v_cliente
+        and v_pedido.estado = 'recibido' and p_estado = 'cancelado');
+
+  if not v_permitido then
+    raise exception 'No puede hacer este cambio de estado' using errcode = '42501';
+  end if;
+
+  if p_estado = 'cancelado' then
+    if nullif(btrim(p_nota), '') is null then
+      raise exception 'Indique el motivo de la cancelación' using errcode = '22023';
+    end if;
+    perform privado.validar_cancelacion(v_pedido.id);
+  end if;
+
+  if p_estado in ('entregado', 'cancelado') then
+    -- Segundo bloqueo: los productos del pedido, por id ascendente.
+    perform 1
+    from public.productos p
+    where p.distribuidor_id = v_pedido.distribuidor_id
+      and p.id in (
+        select i.producto_id from public.pedido_items i
+        where i.pedido_id = v_pedido.id and i.distribuidor_id = v_pedido.distribuidor_id)
+    order by p.id
+    for update;
+
+    -- Un movimiento por línea, como la reserva de crear_pedido.
+    for v_linea in
+      select i.producto_id, i.cantidad * i.factor as unidades
+      from public.pedido_items i
+      where i.pedido_id = v_pedido.id and i.distribuidor_id = v_pedido.distribuidor_id
+      order by i.producto_id, i.presentacion_id
+    loop
+      if p_estado = 'entregado' then
+        perform privado.aplicar_movimiento_stock(
+          v_linea.producto_id, 'salida', -v_linea.unidades, -v_linea.unidades,
+          v_pedido.id, null);
+      else
+        perform privado.aplicar_movimiento_stock(
+          v_linea.producto_id, 'liberacion', 0, -v_linea.unidades, v_pedido.id, null);
+      end if;
+    end loop;
+  end if;
+
+  if p_estado = 'entregado' then
+    update public.pedidos set estado = p_estado, entregado_en = now()
+    where id = v_pedido.id;
+
+    if v_pedido.condicion_pago = 'credito' then
+      select d.zona_horaria into v_zona
+      from public.distribuidores d where d.id = v_pedido.distribuidor_id;
+      select c.plazo_credito_dias into v_plazo
+      from public.clientes_negocio c
+      where c.id = v_pedido.cliente_id and c.distribuidor_id = v_pedido.distribuidor_id;
+
+      update public.pedidos
+      set vence_en = (now() at time zone v_zona)::date + v_plazo
+      where id = v_pedido.id;
+    end if;
+  elsif p_estado = 'cancelado' then
+    update public.pedidos set estado = p_estado, motivo_cancelacion = p_nota
+    where id = v_pedido.id;
+  else
+    update public.pedidos set estado = p_estado where id = v_pedido.id;
+  end if;
+
+  insert into public.pedido_eventos
+    (distribuidor_id, pedido_id, estado_anterior, estado_nuevo, hecho_por, nota)
+  values
+    (v_pedido.distribuidor_id, v_pedido.id, v_pedido.estado, p_estado, v_uid, p_nota);
+end $$;
+
+revoke execute on function
+  public.cambiar_estado_pedido(uuid, public.estado_pedido, text)
+  from public, anon;
+
+grant execute on function
+  public.cambiar_estado_pedido(uuid, public.estado_pedido, text)
+  to authenticated;
+
+-- Asigna (o, con p_repartidor_id nulo, desasigna) el repartidor de un
+-- pedido. Solo admin o vendedor del distribuidor; solo pedidos de reparto en
+-- estado no final; el repartidor debe tener membresía activa de rol
+-- repartidor en ese distribuidor.
+--
+-- Errores: P0002 pedido inexistente o que quien llama no puede ver; 42501
+-- sin sesión o sin rol de admin o vendedor; 22023 pedido de recojo o
+-- repartidor no válido; P0006 pedido entregado o cancelado.
+create function public.asignar_repartidor(
+  p_pedido_id uuid,
+  p_repartidor_id uuid
+) returns void
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_pedido public.pedidos;
+begin
+  if v_uid is null then
+    raise exception 'Se requiere una sesión' using errcode = '42501';
+  end if;
+
+  -- Primera lectura, sin bloqueo (mismo criterio que cambiar_estado_pedido).
+  select * into v_pedido from public.pedidos p where p.id = p_pedido_id;
+
+  if not found
+     or not privado.ve_pedido(v_pedido.distribuidor_id, v_pedido.cliente_id,
+                              v_pedido.repartidor_id) then
+    raise exception 'Pedido inexistente' using errcode = 'P0002';
+  end if;
+
+  if not privado.tiene_rol(v_pedido.distribuidor_id, '{admin,vendedor}') then
+    raise exception 'Solo el admin o el vendedor asignan repartidor' using errcode = '42501';
+  end if;
+
+  select * into v_pedido from public.pedidos p where p.id = p_pedido_id for update;
+
+  -- Revalida con la fila ya bloqueada.
+  if not privado.tiene_rol(v_pedido.distribuidor_id, '{admin,vendedor}') then
+    raise exception 'Solo el admin o el vendedor asignan repartidor' using errcode = '42501';
+  end if;
+
+  if v_pedido.despacho <> 'reparto' then
+    raise exception 'Solo los pedidos de reparto llevan repartidor' using errcode = '22023';
+  end if;
+
+  if v_pedido.estado in ('entregado', 'cancelado') then
+    raise exception 'El pedido ya está %', v_pedido.estado using errcode = 'P0006';
+  end if;
+
+  if p_repartidor_id is not null and not exists (
+    select 1 from public.membresias m
+    where m.perfil_id = p_repartidor_id
+      and m.distribuidor_id = v_pedido.distribuidor_id
+      and m.rol = 'repartidor'
+      and m.estado = 'activa'
+  ) then
+    raise exception 'La persona no es repartidor activo de este distribuidor'
+      using errcode = '22023';
+  end if;
+
+  update public.pedidos set repartidor_id = p_repartidor_id where id = v_pedido.id;
+end $$;
+
+revoke execute on function public.asignar_repartidor(uuid, uuid) from public, anon;
+
+grant execute on function public.asignar_repartidor(uuid, uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Tiempo real: el panel y la app ven los cambios al instante. RLS aplica
+-- igual a las suscripciones.
+-- ---------------------------------------------------------------------------
+alter publication supabase_realtime add table public.pedidos, public.pedido_eventos;

@@ -43,6 +43,8 @@ begin
 end $$;
 
 -- Ejecuta p_sql y exige que falle con el SQLSTATE indicado.
+-- assert_failure va aparte porque "others" no lo captura: su SQLSTATE es
+-- P0004, el mismo que la spec usa para los rechazos de crédito.
 create function pruebas.espera_error(p_sql text, p_sqlstate text, p_etiqueta text) returns void
 language plpgsql
 as $$
@@ -51,7 +53,7 @@ declare
 begin
   begin
     execute p_sql;
-  exception when others then
+  exception when others or assert_failure then
     v_obtenido := sqlstate;
   end;
   if v_obtenido is null then

@@ -316,10 +316,10 @@ create policy perfiles_select_repartidor_de_mis_pedidos on public.perfiles
 --
 -- Errores: 42501 sin permiso o bodega ajena (también si se pierde mientras
 -- espera el bloqueo); 22023 parámetro o ítems mal formados, o más de 200
--- presentaciones distintas; P0002 presentación inexistente, inactiva (o su producto) o de
--- otro distribuidor; P0001 stock insuficiente; P0003 distribuidor fuera de
--- prueba/activo o bodega inactiva; P0004 crédito no habilitado, límite
--- excedido o deuda vencida.
+-- presentaciones distintas; P0002 presentación inexistente, inactiva (o su
+-- producto) o de otro distribuidor; P0001 stock insuficiente; P0003
+-- distribuidor fuera de prueba/activo o bodega inactiva; P0004 crédito no
+-- habilitado, límite excedido o deuda vencida.
 create function public.crear_pedido(
   p_distribuidor_id uuid,
   p_items jsonb,

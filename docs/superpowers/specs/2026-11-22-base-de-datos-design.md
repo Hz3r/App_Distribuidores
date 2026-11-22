@@ -86,6 +86,8 @@ aplicó a ningún entorno, así que no rompe la regla de no editar migraciones a
 3. **Cobros: contado y crédito.** Cada distribuidor decide por bodega si le da crédito. Quien no
    tiene crédito paga contra entrega.
 4. **Entrega en migraciones por módulo** (enfoque 2).
+5. **Pedidos a nombre de la bodega.** El admin y el vendedor pueden crear un pedido para una
+   bodega de su distribuidor.
 
 Todo lo demás en este documento es propuesta de diseño y está marcado como tal donde importa.
 
@@ -258,6 +260,7 @@ Reglas:
 ```
 crear_pedido(
   p_distribuidor_id uuid,
+  p_cliente_id uuid,             -- nulo si llama la propia bodega
   p_items jsonb,                 -- [{"presentacion_id": "<uuid>", "cantidad": <int>}, ...]
   p_despacho despacho_pedido,
   p_condicion_pago condicion_pago,
@@ -269,8 +272,16 @@ crear_pedido(
 
 En una sola transacción:
 
-1. Verifica que quien llama sea cliente con membresía activa en ese distribuidor, que la bodega
-   esté activa y que el distribuidor esté en estado `prueba` o `activo`.
+1. Determina la bodega y verifica el permiso:
+   - Si llama un **cliente**: la bodega es la de su membresía. `p_cliente_id` debe ser nulo o
+     igual a la suya.
+   - Si llama un **admin o vendedor**: `p_cliente_id` es obligatorio y debe ser una bodega de
+     ese distribuidor. Es el pedido a nombre de la bodega (por ejemplo, tomado por teléfono).
+   - Un repartidor no crea pedidos.
+
+   En ambos casos la bodega debe estar activa y el distribuidor en estado `prueba` o `activo`.
+   `pedidos.creado_por` guarda quién lo registró y `cliente_id` para quién es. Precios, lista
+   y reglas de crédito se aplican igual, según la bodega y no según quién llama.
 2. Si ya existe un pedido de esa bodega con la misma `clave_idempotencia`, devuelve su id sin
    crear otro. Evita pedidos duplicados cuando la app reintenta por mala señal.
 3. Valida que haya ítems, que las cantidades sean mayores a cero, y que cada presentación exista,
@@ -300,7 +311,7 @@ Códigos de error (se conservan los del borrador y se agregan dos):
 
 | SQLSTATE | Caso |
 |---|---|
-| `42501` | No es cliente de ese distribuidor, o no tiene permiso |
+| `42501` | No es cliente, admin ni vendedor de ese distribuidor, o la bodega indicada no le corresponde |
 | `22023` | Sin ítems, cantidad ≤ 0 o parámetro inválido |
 | `P0002` | Presentación inexistente, inactiva o de otro distribuidor |
 | `P0001` | Stock insuficiente |
@@ -322,7 +333,7 @@ entregado, cancelado → (finales)
 
 | Quién | Qué puede hacer |
 |---|---|
-| Admin, vendedor | Todas las transiciones |
+| Admin, vendedor | Todas las transiciones, y crear pedidos a nombre de una bodega |
 | Repartidor | `confirmado → en_camino` y `en_camino → entregado`, solo en pedidos asignados a él |
 | Cliente | `recibido → cancelado`, solo en sus pedidos |
 
@@ -436,7 +447,7 @@ Cinco migraciones, en este orden, cada una con su archivo de pruebas en `supabas
 |---|---|---|
 | 1 | `identidad_y_acceso` | Aislamiento entre distribuidores; canje válido, vencido, usado y repetido; freno de intentos; nadie se vuelve Super Admin |
 | 2 | `catalogo_e_inventario` | Cliente no escribe catálogo ni stock; admin no escribe stock directo; ajuste inválido rechazado; cliente solo ve su lista |
-| 3 | `pedidos` | Reserva de stock; rechazo sin efectos parciales; dos presentaciones del mismo producto; regla del menor precio; idempotencia; transiciones válidas e inválidas; entrega y cancelación mueven stock; permisos por rol; límite de crédito; deuda vencida bloquea; distribuidor suspendido no recibe pedidos |
+| 3 | `pedidos` | Reserva de stock; rechazo sin efectos parciales; dos presentaciones del mismo producto; regla del menor precio; idempotencia; pedido a nombre de la bodega por vendedor y rechazo para bodega ajena; transiciones válidas e inválidas; entrega y cancelación mueven stock; permisos por rol; límite de crédito; deuda vencida bloquea; distribuidor suspendido no recibe pedidos |
 | 4 | `cobros` | Pago parcial y total; no pagar de más; anulación; cancelar con pagos rechazado; repartidor solo cobra pedidos asignados |
 | 5 | `plataforma` | Solo Super Admin escribe; admin lee solo su suscripción; `crear_distribuidor` deja el distribuidor listo para canjear su invitación de admin |
 

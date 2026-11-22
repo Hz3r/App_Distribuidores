@@ -179,6 +179,28 @@ end $$;
 create trigger crear_perfil after insert on auth.users
   for each row execute function privado.tg_crear_perfil();
 
+-- Relleno: las cuentas que ya existían antes de esta migración no pasaron
+-- por el trigger. Sin perfil, canjear_invitacion fallaría con 23503.
+insert into public.perfiles (id, nombre, telefono)
+select id, coalesce(raw_user_meta_data->>'nombre',''), phone from auth.users
+on conflict (id) do nothing;
+
+-- Mantiene perfiles.telefono igual a auth.users.phone cuando la cuenta
+-- cambia de teléfono (crear_perfil solo lo copia al insertar).
+create function privado.tg_sincronizar_telefono() returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update public.perfiles set telefono = new.phone
+  where id = new.id and telefono is distinct from new.phone;
+  return new;
+end $$;
+
+create trigger sincronizar_telefono after update of phone on auth.users
+  for each row execute function privado.tg_sincronizar_telefono();
+
 -- ---------------------------------------------------------------------------
 -- Funciones auxiliares de seguridad
 -- Una membresía cuenta solo si está activa y, si es de cliente, su bodega
@@ -288,7 +310,8 @@ $$;
 
 -- Código de 8 caracteres sin ambiguos (sin 0, O, 1, I, L). Usa los bytes
 -- aleatorios de gen_random_uuid(); salta los bytes 6 y 8 (bits fijos de
--- versión y variante) y descarta valores >= 240 para no sesgar el módulo 30.
+-- versión y variante) y descarta valores >= 248 (8 × 31) para no sesgar el
+-- módulo 31.
 create function privado.generar_codigo_invitacion() returns text
 language plpgsql
 volatile
@@ -306,8 +329,8 @@ begin
     for i in 0..15 loop
       continue when i in (6, 8);
       v_byte := get_byte(v_bytes, i);
-      continue when v_byte >= 240;
-      v_codigo := v_codigo || substr(c_alfabeto, v_byte % 30 + 1, 1);
+      continue when v_byte >= 248;
+      v_codigo := v_codigo || substr(c_alfabeto, v_byte % 31 + 1, 1);
       exit when length(v_codigo) = 8;
     end loop;
   end loop;
@@ -344,6 +367,7 @@ grant select, delete on public.dispositivos_push to authenticated;
 revoke execute on function
   privado.tg_actualizado_en(),
   privado.tg_crear_perfil(),
+  privado.tg_sincronizar_telefono(),
   privado.es_super_admin(),
   privado.es_miembro(uuid),
   privado.tiene_rol(uuid, public.rol_membresia[]),
@@ -628,8 +652,10 @@ begin
     raise exception 'Estado inválido' using errcode = '22023';
   end if;
 
-  -- Serializa los cambios de membresía de un distribuidor (regla del último admin).
-  perform 1 from public.distribuidores d where d.id = v_distribuidor for update;
+  -- Serializa los cambios de membresía de un distribuidor (regla del último
+  -- admin). "no key update" basta y no frena las claves foráneas que apuntan
+  -- al distribuidor (toman "key share").
+  perform 1 from public.distribuidores d where d.id = v_distribuidor for no key update;
   select * into v_m from public.membresias m where m.id = p_membresia_id for update;
 
   -- Revalida con las filas ya bloqueadas: quien llama pudo perder el rol de
@@ -674,7 +700,7 @@ begin
     raise exception 'No puede cambiar esta membresía' using errcode = '42501';
   end if;
 
-  perform 1 from public.distribuidores d where d.id = v_distribuidor for update;
+  perform 1 from public.distribuidores d where d.id = v_distribuidor for no key update;
   select * into v_m from public.membresias m where m.id = p_membresia_id for update;
 
   -- Revalida con las filas ya bloqueadas: quien llama pudo perder el rol de
@@ -697,6 +723,68 @@ begin
   end if;
 
   update public.membresias set rol = p_rol where id = p_membresia_id;
+end $$;
+
+-- Cambia la bodega de una membresía de cliente (corrige una vinculación a la
+-- bodega equivocada). Solo admin del distribuidor; la bodega destino debe
+-- ser del mismo distribuidor y estar activa.
+--
+-- Errores: 42501 sin sesión, membresía inexistente o sin permiso; 22023
+-- bodega nula, membresía que no es de cliente, o bodega de otro distribuidor
+-- o inactiva.
+create function public.cambiar_bodega_membresia(
+  p_membresia_id uuid,
+  p_cliente_negocio_id uuid
+) returns void
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_distribuidor uuid;
+  v_m public.membresias;
+begin
+  if v_uid is null then
+    raise exception 'Se requiere una sesión' using errcode = '42501';
+  end if;
+
+  select m.distribuidor_id into v_distribuidor
+  from public.membresias m where m.id = p_membresia_id;
+
+  if v_distribuidor is null or not privado.tiene_rol(v_distribuidor, '{admin}') then
+    raise exception 'No puede cambiar esta membresía' using errcode = '42501';
+  end if;
+
+  if p_cliente_negocio_id is null then
+    raise exception 'Indique la bodega' using errcode = '22023';
+  end if;
+
+  -- Mismo orden de bloqueos que las otras funciones de membresía.
+  perform 1 from public.distribuidores d where d.id = v_distribuidor for no key update;
+  select * into v_m from public.membresias m where m.id = p_membresia_id for update;
+
+  -- Revalida con las filas ya bloqueadas: quien llama pudo perder el rol de
+  -- admin (o la membresía desaparecer) mientras esperaba el bloqueo.
+  if not found or not privado.tiene_rol(v_distribuidor, '{admin}') then
+    raise exception 'No puede cambiar esta membresía' using errcode = '42501';
+  end if;
+
+  if v_m.rol <> 'cliente' then
+    raise exception 'Solo una membresía de cliente tiene bodega' using errcode = '22023';
+  end if;
+
+  if not exists (
+    select 1 from public.clientes_negocio c
+    where c.id = p_cliente_negocio_id and c.distribuidor_id = v_distribuidor and c.activo
+  ) then
+    raise exception 'La bodega no es de este distribuidor o está inactiva'
+      using errcode = '22023';
+  end if;
+
+  update public.membresias set cliente_negocio_id = p_cliente_negocio_id
+  where id = p_membresia_id;
 end $$;
 
 -- Registra el token de notificaciones del dispositivo para quien llama. Si el
@@ -732,6 +820,7 @@ revoke execute on function
   public.canjear_invitacion(text),
   public.cambiar_estado_membresia(uuid, public.estado_membresia),
   public.cambiar_rol_membresia(uuid, public.rol_membresia),
+  public.cambiar_bodega_membresia(uuid, uuid),
   public.registrar_dispositivo(text, text)
   from public, anon;
 
@@ -741,5 +830,6 @@ grant execute on function
   public.canjear_invitacion(text),
   public.cambiar_estado_membresia(uuid, public.estado_membresia),
   public.cambiar_rol_membresia(uuid, public.rol_membresia),
+  public.cambiar_bodega_membresia(uuid, uuid),
   public.registrar_dispositivo(text, text)
   to authenticated;

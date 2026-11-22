@@ -85,7 +85,10 @@ Reglas:
 - `membresias.cliente_negocio_id` e `invitaciones.cliente_negocio_id` son obligatorios si el rol es
   `cliente` y nulos en los demás (`check`). Varias personas pueden pertenecer a la misma bodega.
 - `perfiles` lo crea el trigger `crear_perfil` al insertarse la fila en `auth.users`: copia
-  `auth.users.phone` a `telefono` y `raw_user_meta_data ->> 'nombre'` a `nombre`.
+  `auth.users.phone` a `telefono` y `raw_user_meta_data ->> 'nombre'` a `nombre`. La migración 1
+  también crea el perfil de las cuentas que ya existían antes de aplicarse (mismo criterio).
+- El trigger `sincronizar_telefono` (`after update of phone` en `auth.users`) mantiene
+  `perfiles.telefono` igual a `auth.users.phone` cuando la cuenta cambia de teléfono.
 - Una invitación cuenta como usada cuando `usada_en` no es nulo (`usada_por` queda nulo si se
   borra la cuenta que la canjeó).
 - **Una membresía cuenta solo si está `activa` y, si es de cliente, su bodega está activa.**
@@ -204,8 +207,8 @@ Reglas:
 | `validar_cancelacion(p_pedido uuid)` | nada; lanza `P0006` si el pedido tiene pagos sin anular | interna (el módulo 4 la redefine) |
 | `estado_pago_segun(p_saldo bigint, p_total bigint)` | `estado_pago` según el saldo | interna |
 
-Triggers: `tg_actualizado_en()`, `tg_crear_perfil()` (definer, sobre `auth.users`) y
-`tg_clientes_negocio_protege_campos()`.
+Triggers: `tg_actualizado_en()`, `tg_crear_perfil()` y `tg_sincronizar_telefono()` (definer,
+sobre `auth.users`) y `tg_clientes_negocio_protege_campos()`.
 
 Todas tienen `search_path = ''` y `execute` revocado a `public` y `anon`. `authenticated` solo puede
 ejecutar las marcadas "en políticas"; las internas solo las llaman funciones `security definer`.
@@ -223,7 +226,7 @@ las funciones de la sección 3.
 | `distribuidores` | lee; edita `nombre`, `telefono`, `config_tema` | lee | lee | lee | lee todos; `estado` por funciones |
 | `perfiles` | lee el suyo y los de las personas con membresía en su distribuidor | igual que admin | igual que admin | lee el suyo y el del repartidor asignado a sus pedidos | lee todos |
 | (todos) `perfiles` | cada persona edita solo su `nombre` | | | | |
-| `membresias` | lee todas; estado y rol por funciones | lee todas | lee la suya | lee la suya | lee todas |
+| `membresias` | lee todas; estado, rol y bodega por funciones | lee todas | lee la suya | lee la suya | lee todas |
 | `clientes_negocio` | lee, crea y edita (con lista y crédito); sin `delete` | lee, crea y edita, sin lista ni crédito | lee las de sus pedidos asignados | lee la suya | lee todas |
 | `invitaciones` | lee todas; crea y revoca por funciones | lee, crea y revoca las de rol `cliente` | no | no | lee todas; crea y revoca en cualquiera |
 | `categorias`, `productos`, `presentaciones` | lee todo; crea y edita por columnas (sin stock, sin `delete`) | lee todo | lee solo activos | lee solo activos | lee todo |
@@ -291,9 +294,7 @@ Los mensajes están en español y pueden cambiar; la app decide por el código, 
 **`crear_invitacion(p_distribuidor_id uuid, p_rol rol_membresia, p_cliente_negocio_id uuid default null, p_dias_vigencia integer default 7) returns invitaciones`**
 - Quién: admin (cualquier rol), vendedor (solo rol `cliente`), Super Admin (cualquier distribuidor).
 - Genera el código (8 caracteres del alfabeto `ABCDEFGHJKMNPQRSTUVWXYZ23456789`, sin `0`, `O`, `1`,
-  `I`, `L`), con `vence_en = now() + p_dias_vigencia días`. Devuelve la fila creada. Detalle: el
-  generador toma el byte módulo 30 y el alfabeto tiene 31 caracteres, así que el `9` nunca sale en
-  un código generado (el canje acepta cualquier código guardado).
+  `I`, `L`), con `vence_en = now() + p_dias_vigencia días`. Devuelve la fila creada.
 - Errores: `42501` sin permiso o bodega de otro distribuidor; `22023` rol nulo, vigencia nula o < 1,
   bodega ausente con rol `cliente` o presente con otro rol; `23503` (solo Super Admin, rol distinto
   de `cliente`) `p_distribuidor_id` inexistente.
@@ -322,6 +323,13 @@ Los mensajes están en español y pueden cambiar; la app decide por el código, 
   cliente ni al revés.
 - Errores: `42501` inexistente o sin permiso; `22023` rol nulo o fuera de personal; `P0006` dejaría
   al distribuidor sin admin activo.
+
+**`cambiar_bodega_membresia(p_membresia_id uuid, p_cliente_negocio_id uuid) returns void`**
+- Quién: admin del distribuidor. Mueve una membresía de rol `cliente` a otra bodega (por ejemplo,
+  para corregir una invitación hecha con la bodega equivocada). La bodega destino debe ser del
+  mismo distribuidor y estar activa.
+- Errores: `42501` inexistente o sin permiso; `22023` bodega nula, membresía que no es de cliente,
+  o bodega de otro distribuidor o inactiva.
 
 **`registrar_dispositivo(p_token text, p_plataforma text) returns void`**
 - Quién: cualquier persona con sesión. Guarda el token a su nombre; si el token ya existía (otra
@@ -494,7 +502,8 @@ asignado solo para que el repartidor lo mueva; admin y vendedor pueden moverlo s
 Otros estados:
 - `estado_pago`: `pendiente` (saldo = total), `parcial`, `pagado` (saldo 0). Solo lo mueven
   `registrar_pago` y `anular_pago`.
-- `estado_membresia`: `activa` ↔ `suspendida`, con `cambiar_estado_membresia`.
+- `estado_membresia`: `activa` ↔ `suspendida`, con `cambiar_estado_membresia`. La bodega de una
+  membresía de cliente se cambia con `cambiar_bodega_membresia`.
 - `estado_distribuidor`: libre entre sus valores, con `cambiar_estado_distribuidor`.
 - `estado_suscripcion`: nace `prueba` (`crear_distribuidor`); `registrar_pago_suscripcion` la deja
   `activa`. `vencida` y `cancelada` no las pone ninguna función todavía.

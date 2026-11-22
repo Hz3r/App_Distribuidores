@@ -252,4 +252,84 @@ select pruebas.afirma(
   and pruebas.cuenta('select 1 from public.clientes_negocio') = 0,
   '1.29 con la bodega inactiva el cliente no ve el distribuidor ni la bodega');
 
+-- 1.30 a 1.33: cambiar la bodega de una membresía de cliente. C2 sigue
+-- vinculada a 0b02, que 1.29 dejó inactiva.
+select pruebas.como('00000000-0000-0000-0000-0000000000a1');
+select public.cambiar_bodega_membresia(
+  (select id from public.membresias
+   where perfil_id = '00000000-0000-0000-0000-0000000000c2'
+     and distribuidor_id = '00000000-0000-0000-0000-000000000d01'),
+  '00000000-0000-0000-0000-000000000b01');
+select pruebas.como('00000000-0000-0000-0000-0000000000c2');
+select pruebas.afirma(
+  pruebas.cuenta('select 1 from public.clientes_negocio') = 1
+  and pruebas.cuenta($q$select 1 from public.clientes_negocio where id = '00000000-0000-0000-0000-000000000b01'$q$) = 1
+  and pruebas.cuenta('select 1 from public.distribuidores') = 1,
+  '1.30 el admin mueve a C2 de 0b02 a 0b01 y C2 ve solo 0b01');
+
+-- V1 volvió a ser vendedor tras 1.26 (repartidor).
+select pruebas.como('00000000-0000-0000-0000-0000000000a1');
+select public.cambiar_rol_membresia(
+  (select id from public.membresias
+   where perfil_id = '00000000-0000-0000-0000-0000000000b1'
+     and distribuidor_id = '00000000-0000-0000-0000-000000000d01'),
+  'vendedor');
+select pruebas.como('00000000-0000-0000-0000-0000000000b1');
+select pruebas.espera_error(
+  $q$select public.cambiar_bodega_membresia(
+       (select id from public.membresias
+        where perfil_id = '00000000-0000-0000-0000-0000000000c2'
+          and distribuidor_id = '00000000-0000-0000-0000-000000000d01'),
+       '00000000-0000-0000-0000-000000000b02')$q$,
+  '42501', '1.31 el vendedor no cambia la bodega de una membresía');
+select pruebas.como('00000000-0000-0000-0000-0000000000a1');
+select pruebas.espera_error(
+  $q$select public.cambiar_bodega_membresia(gen_random_uuid(), '00000000-0000-0000-0000-000000000b01')$q$,
+  '42501', '1.31 membresía inexistente');
+
+select pruebas.espera_error(
+  $q$select public.cambiar_bodega_membresia(
+       (select id from public.membresias
+        where perfil_id = '00000000-0000-0000-0000-0000000000c2'
+          and distribuidor_id = '00000000-0000-0000-0000-000000000d01'),
+       '00000000-0000-0000-0000-000000000b03')$q$,
+  '22023', '1.32 la bodega destino no es de otro distribuidor');
+select pruebas.espera_error(
+  $q$select public.cambiar_bodega_membresia(
+       (select id from public.membresias
+        where perfil_id = '00000000-0000-0000-0000-0000000000c2'
+          and distribuidor_id = '00000000-0000-0000-0000-000000000d01'),
+       '00000000-0000-0000-0000-000000000b02')$q$,
+  '22023', '1.32 la bodega destino debe estar activa');
+
+select pruebas.espera_error(
+  $q$select public.cambiar_bodega_membresia(
+       (select id from public.membresias
+        where perfil_id = '00000000-0000-0000-0000-0000000000b1'
+          and distribuidor_id = '00000000-0000-0000-0000-000000000d01'),
+       '00000000-0000-0000-0000-000000000b01')$q$,
+  '22023', '1.33 una membresía de personal no lleva bodega');
+
+-- 1.34: el generador usa los 31 caracteres del alfabeto. Con 300 códigos
+-- (2400 caracteres) la probabilidad de que falte alguno es menor a 1e-30.
+select pruebas.como_servicio();
+select pruebas.afirma(
+  (select count(distinct ch) = 31
+   from (select privado.generar_codigo_invitacion() as codigo
+         from generate_series(1, 300)) as g,
+        regexp_split_to_table(g.codigo, '') as ch),
+  '1.34 los códigos generados usan los 31 caracteres del alfabeto (también el 9)');
+
+-- 1.35: el teléfono del perfil sigue al de la cuenta.
+update auth.users set phone = '51999999999'
+where id = '00000000-0000-0000-0000-0000000000c1';
+update auth.users set phone = null
+where id = '00000000-0000-0000-0000-0000000000c2';
+select pruebas.afirma(
+  (select telefono = '51999999999' from public.perfiles
+   where id = '00000000-0000-0000-0000-0000000000c1')
+  and (select telefono is null from public.perfiles
+       where id = '00000000-0000-0000-0000-0000000000c2'),
+  '1.35 cambiar auth.users.phone actualiza perfiles.telefono');
+
 rollback;

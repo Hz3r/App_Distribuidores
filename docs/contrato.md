@@ -63,7 +63,9 @@ Los enums `rol_usuario` y `tipo_presentacion` del borrador ya no existen.
 
 ### Tablas
 
-Todas tienen `id uuid` (pk) y `creado_en`; las marcadas con ✎ tienen `actualizado_en`.
+Todas tienen `creado_en` y, salvo `contadores_pedido` (su pk es `distribuidor_id`), un `id uuid`
+(pk) con default `gen_random_uuid()`; en `perfiles` el `id` no tiene default (es el de
+`auth.users`). Las marcadas con ✎ tienen `actualizado_en`.
 `?` = admite nulo.
 
 #### Módulo 1: identidad y acceso
@@ -273,7 +275,7 @@ Los parámetros con valor por defecto van al final: **la app los pasa por nombre
 | `23505` | Valor repetido (slug de distribuidor; segunda suscripción vigente) |
 | `P0001` | Stock insuficiente (o un ajuste que deja el físico por debajo del comprometido) |
 | `P0002` | No existe, o quien llama no puede verlo (pedido, pago, presentación, suscripción, distribuidor) |
-| `P0003` | Distribuidor que no está en `prueba` ni `activo`, o bodega inactiva |
+| `P0003` | Distribuidor que no está en `prueba` ni `activo`, o bodega inactiva en un pedido que admin o vendedor crean a su nombre (un cliente con la bodega inactiva recibe `42501`: su membresía ya no cuenta) |
 | `P0004` | Crédito no habilitado, límite excedido o deuda vencida |
 | `P0005` | Demasiados intentos de canje (solo `canjear_invitacion`) |
 | `P0006` | Operación no válida para el estado actual: transición de pedido inválida, pago sobre pedido cancelado, pago ya anulado, cancelar con pagos activos, revocar una invitación usada, dejar a un distribuidor sin admin activo |
@@ -293,7 +295,8 @@ Los mensajes están en español y pueden cambiar; la app decide por el código, 
   generador toma el byte módulo 30 y el alfabeto tiene 31 caracteres, así que el `9` nunca sale en
   un código generado (el canje acepta cualquier código guardado).
 - Errores: `42501` sin permiso o bodega de otro distribuidor; `22023` rol nulo, vigencia nula o < 1,
-  bodega ausente con rol `cliente` o presente con otro rol.
+  bodega ausente con rol `cliente` o presente con otro rol; `23503` (solo Super Admin, rol distinto
+  de `cliente`) `p_distribuidor_id` inexistente.
 
 **`revocar_invitacion(p_invitacion_id uuid) returns void`**
 - Quién: los mismos que pueden crearla. Revocar dos veces no hace nada.
@@ -346,8 +349,11 @@ Los mensajes están en español y pueden cambiar; la app decide por el código, 
     bodega). Precios, lista y crédito se aplican según la bodega, no según quién llama.
   - Nadie más (el repartidor no crea pedidos).
 - En una transacción:
-  1. Verifica permiso y bodega. Bloquea la fila de la bodega (serializa sus pedidos).
-  2. Rechaza si la bodega está inactiva o el distribuidor no está en `prueba` ni `activo`.
+  1. Verifica permiso y bodega. Un cliente cuya bodega está inactiva recibe `42501`: su membresía
+     ya no cuenta, así que no es cliente de ese distribuidor. Bloquea la fila de la bodega
+     (serializa sus pedidos).
+  2. Rechaza con `P0003` si el distribuidor no está en `prueba` ni `activo`, o si la bodega está
+     inactiva (esto último solo llega en pedidos que admin o vendedor crean a su nombre).
   3. **Idempotencia:** si la bodega ya tiene un pedido con esa clave, devuelve su id sin revisar los
      ítems ni crear otro. La app genera la clave una vez por intento de compra y la reutiliza en los
      reintentos.
@@ -361,12 +367,12 @@ Los mensajes están en español y pueden cambiar; la app decide por el código, 
      `estado_pago = pendiente`, sus líneas, un movimiento `reserva` por línea (sube el
      comprometido) y el primer evento.
 - Devuelve el id del pedido. Si algo falla, se revierte todo.
-- Errores: `42501` sin permiso o bodega ajena; `22023` falta la clave, el despacho o la condición,
-  admin o vendedor sin `p_cliente_id`, ítems que no son un arreglo no vacío de
+- Errores: `42501` sin permiso o bodega ajena (también un cliente cuya bodega está inactiva);
+  `22023` falta la clave, el despacho o la condición, admin o vendedor sin `p_cliente_id`, ítems que no son un arreglo no vacío de
   `{presentacion_id, cantidad}`, cantidad no entera, ≤ 0 o mayor al máximo de `integer`;
   `P0002` presentación inexistente, inactiva (o su producto) o de otro distribuidor; `P0001` stock
   insuficiente (el mensaje nombra el producto); `P0003` distribuidor fuera de `prueba`/`activo` o
-  bodega inactiva; `P0004` crédito no habilitado, límite excedido o deuda vencida.
+  bodega inactiva en un pedido a su nombre (admin o vendedor); `P0004` crédito no habilitado, límite excedido o deuda vencida.
 - Notas:
   - Lee el estado del distribuidor **sin bloquear su fila**: una suspensión confirmada en el mismo
     instante puede dejar pasar un pedido.
@@ -541,6 +547,11 @@ Tras iniciar sesión, la app:
 2. Si hay varias, la persona elige el distribuidor; la app lo guarda como distribuidor activo.
 3. Redirige según el rol de esa membresía (`cliente`, `repartidor`, o `admin`/`vendedor` en el
    panel). Sin membresías, ofrece canjear un código (`canjear_invitacion`).
+
+Una membresía de cliente cuya bodega está inactiva sigue en `estado = 'activa'` en `membresias`,
+pero **no cuenta**: el distribuidor, el catálogo y los pedidos dejan de ser visibles y
+`crear_pedido` lanza `42501`. La app debe tratar un `42501` (o una lectura vacía del distribuidor)
+en catálogo o pedidos como "sin acceso a este distribuidor", no como un error genérico.
 
 El cambio en cada router lo hace el dueño de cada app (`app_movil`: Hz3r; `panel_web`: Jair103),
 en el plan de `packages/core`. Hoy los routers todavía leen `app_metadata.rol`.

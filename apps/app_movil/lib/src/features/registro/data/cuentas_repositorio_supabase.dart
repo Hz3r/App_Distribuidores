@@ -19,6 +19,7 @@ class CuentasRepositorioSupabase implements CuentasRepositorio {
 
   /// Códigos de error de Supabase Auth (`AuthException.code`).
   static const _yaExiste = 'user_already_exists';
+  static const _contrasenaDebil = 'weak_password';
   static const _credencialesIncorrectas = 'invalid_credentials';
   static const _correoSinConfirmar = 'email_not_confirmed';
 
@@ -49,6 +50,10 @@ class CuentasRepositorioSupabase implements CuentasRepositorio {
     } on AuthException catch (e, st) {
       // Sin confirmación de correo, un correo repetido sí da error.
       if (e.code == _yaExiste) return ResultadoCrearCuenta.correoYaRegistrado;
+      // `AuthWeakPasswordException` también trae este código.
+      if (e.code == _contrasenaDebil) {
+        return ResultadoCrearCuenta.contrasenaDebil;
+      }
       _registrar('No se pudo crear la cuenta.', e, st);
       return _esSinConexion(e)
           ? ResultadoCrearCuenta.sinConexion

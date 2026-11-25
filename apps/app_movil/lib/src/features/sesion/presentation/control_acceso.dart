@@ -58,8 +58,14 @@ class ControlAcceso extends _$ControlAcceso {
   /// que este contador es lo que descarta una carga lanzada con otra sesión.
   int _carga = 0;
 
+  /// Cambia con cada reconstrucción, es decir, con cada cambio de sesión (a
+  /// diferencia de [_carga], que también cambia con `recargar`). Un canje
+  /// que termina con otra generación no ejecuta sus efectos.
+  int _generacionSesion = 0;
+
   /// Canje del registro pendiente en curso. Las cargas que empiezan mientras
-  /// tanto esperan este mismo canje en vez de lanzar otro.
+  /// tanto esperan este mismo canje en vez de lanzar otro. Devuelve el
+  /// distribuidor de un código que no vinculó, o `null`.
   Future<String?>? _canjeEnCurso;
 
   /// Códigos de registros pendientes ya canjeados (vinculen o no). Si
@@ -74,6 +80,7 @@ class ControlAcceso extends _$ControlAcceso {
   Acceso build() {
     // Cada reconstrucción (la sesión cambió) invalida las cargas pendientes.
     _carga++;
+    _generacionSesion++;
     // `select` evita reconstruir con eventos que no cambian la sesión (por
     // ejemplo, el que emite `auth.updateUser` al guardar la preferencia o al
     // limpiar el registro pendiente).
@@ -142,13 +149,22 @@ class ControlAcceso extends _$ControlAcceso {
     Acceso resultado;
     try {
       // Antes de leer las membresías: el canje puede crear una.
-      final aviso = await _canjearPendienteUnaVez();
+      final sinVincular = await _canjearPendienteUnaVez();
       final todas = await repositorio.listarMias();
-      resultado = accesoDesde(
-        todas,
-        repositorio.distribuidorPreferido(),
-        aviso: aviso,
-      );
+      final acceso = accesoDesde(todas, repositorio.distribuidorPreferido());
+      // "No vinculó" puede ser el reintento de un canje que sí se confirmó
+      // (se perdió la respuesta): solo se avisa si de verdad no hay acceso
+      // en ese distribuidor.
+      final vinculada =
+          sinVincular == null ||
+          acceso.membresias.any((m) => m.distribuidorId == sinVincular);
+      resultado = vinculada
+          ? acceso
+          : ConAcceso(
+              membresias: acceso.membresias,
+              activa: acceso.activa,
+              aviso: avisoNoVinculado,
+            );
     } catch (e, st) {
       // La causa puede ser la red, un 401, un error de PostgREST o de parseo,
       // también del canje del registro pendiente (que entonces se conserva
@@ -171,7 +187,8 @@ class ControlAcceso extends _$ControlAcceso {
   }
 
   /// Canjea el registro pendiente, si hay, compartiendo el canje en curso
-  /// con las cargas que se solapen. Devuelve el aviso para la persona.
+  /// con las cargas que se solapen. Devuelve el distribuidor de un código
+  /// que no vinculó, o `null`.
   Future<String?> _canjearPendienteUnaVez() async {
     final canje = _canjeEnCurso ??= _canjearPendiente();
     try {
@@ -182,15 +199,21 @@ class ControlAcceso extends _$ControlAcceso {
   }
 
   /// Canjea el código del registro pendiente, completa los datos de la
-  /// bodega si vinculó y limpia el pendiente, vincule o no: un código que no
-  /// vincula no se reintenta. Si el canje lanza (sin respuesta, freno), el
-  /// error se propaga y el pendiente se conserva para el próximo intento.
+  /// bodega y limpia el pendiente, vincule o no: un código que no vincula no
+  /// se reintenta. Si el canje lanza (sin respuesta, freno), el error se
+  /// propaga y el pendiente se conserva para el próximo intento.
+  ///
+  /// Los datos se completan aunque el canje diga que no vinculó: puede ser el
+  /// reintento de un canje que el servidor sí confirmó (respuesta perdida, o
+  /// la app se cerró antes de completar). Si de verdad no es cliente ahí, la
+  /// BD lo rechaza con `42501`, que se registra y no bloquea.
   Future<String?> _canjearPendiente() async {
+    final generacion = _generacionSesion;
     final cuentas = ref.read(cuentasRepositorioProvider);
     final pendiente = cuentas.pendienteActual();
     if (pendiente == null) return null;
 
-    String? aviso;
+    String? sinVincular;
     if (_codigosCanjeados.add(pendiente.codigo)) {
       final bool vinculada;
       try {
@@ -202,9 +225,12 @@ class ControlAcceso extends _$ControlAcceso {
         _codigosCanjeados.remove(pendiente.codigo);
         rethrow;
       }
-      if (!vinculada) {
-        aviso = avisoNoVinculado;
-      } else if (pendiente.tieneDatosNegocio) {
+      // La sesión cambió mientras se canjeaba: los efectos que siguen
+      // actuarían sobre otra cuenta.
+      if (!ref.mounted || generacion != _generacionSesion) return null;
+      if (!vinculada) sinVincular = pendiente.distribuidorId;
+
+      if (pendiente.tieneDatosNegocio) {
         // El canje crea la membresía en el distribuidor de la invitación,
         // que es el que guardó el pendiente.
         try {
@@ -213,7 +239,7 @@ class ControlAcceso extends _$ControlAcceso {
             pendiente,
           );
         } catch (e, st) {
-          // No bloquea la entrada: la bodega ya quedó vinculada.
+          // No bloquea la entrada.
           developer.log(
             'No se pudieron completar los datos de la bodega.',
             name: 'control_acceso',
@@ -221,6 +247,7 @@ class ControlAcceso extends _$ControlAcceso {
             stackTrace: st,
           );
         }
+        if (!ref.mounted || generacion != _generacionSesion) return null;
       }
     }
 
@@ -235,6 +262,6 @@ class ControlAcceso extends _$ControlAcceso {
         stackTrace: st,
       );
     }
-    return aviso;
+    return sinVincular;
   }
 }

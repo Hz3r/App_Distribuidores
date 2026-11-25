@@ -11,6 +11,11 @@ enum ResultadoCrearCuenta {
   requiereConfirmarCorreo,
 
   correoYaRegistrado,
+
+  /// El proyecto rechazó la contraseña por débil: reintentar con la misma
+  /// no sirve.
+  contrasenaDebil,
+
   sinConexion,
   error,
 }

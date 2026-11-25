@@ -704,13 +704,16 @@ Estado de cada app:
      Supabase devuelve un usuario sin `identities`, y la app lo trata como "ya existe".
   5. **En cuanto hay sesión** (al crear la cuenta o en cualquier ingreso posterior), antes de leer
      las membresías, la app lee `user_metadata.registro_pendiente` y, si hay:
-     canjea el código (`canjear_invitacion`); si vinculó y hay datos de bodega, llama
-     `completar_datos_negocio` con el `distribuidor_id` guardado (un fallo aquí se registra y no
-     impide entrar); y **limpia el pendiente vincule o no**
-     (`auth.updateUser(data: {registro_pendiente: null})`): un código que no vincula no se
-     reintenta, y la pantalla sin acceso avisa "No pudimos vincular tu código. Pide uno nuevo a tu
-     distribuidor.". Si el canje no responde (red, `P0005`), el pendiente se conserva y se
-     reintenta en la siguiente carga.
+     canjea el código (`canjear_invitacion`); si hay datos de bodega, llama
+     `completar_datos_negocio` con el `distribuidor_id` guardado **aunque el canje devuelva
+     `null`** (puede ser el reintento de un canje que el servidor ya confirmó; si no es cliente
+     ahí, la BD responde `42501`, que se registra y no impide entrar); y **limpia el pendiente
+     vincule o no** (`auth.updateUser(data: {registro_pendiente: null})`): un código que no
+     vincula no se reintenta. Si el canje devolvió `null` y, tras leer las membresías, no hay
+     ninguna útil en ese distribuidor, la pantalla sin acceso avisa "No pudimos vincular tu
+     código. Pide uno nuevo a tu distribuidor.". Si el canje no responde (red, `P0005`), el
+     pendiente se conserva y se reintenta en la siguiente carga. Si la sesión cambia mientras se
+     canjea, no se completa ni se limpia.
   6. Con sesión, la pantalla de código canjea directamente (para sumar otro distribuidor).
 
   `user_metadata.registro_pendiente` es solo de la app móvil y lo escribe la propia persona: la
@@ -719,7 +722,7 @@ Estado de cada app:
   `select('*, distribuidor:distribuidores(*), cliente_negocio:clientes_negocio(*)')` filtrando por
   `perfil_id`, y se queda con las **membresías útiles**: `estado = 'activa'`, rol `cliente` o
   `repartidor` (`admin` y `vendedor` usan el panel) y distribuidor visible. Ninguna → pantalla
-  "Sin acceso en la app" (reintentar y cerrar sesión); una → entra directo; varias → elige en
+  "Sin acceso en la app" (reintentar, "Tengo un código" y cerrar sesión); una → entra directo; varias → elige en
   `seleccion-distribuidor`. La preferencia se guarda en **`user_metadata.distribuidor_activo`**
   (`auth.updateUser`) y se usa si sigue entre las útiles. Es solo una preferencia: la BD valida la
   membresía en cada consulta. Mientras lee muestra una pantalla de espera; si falla, una de error

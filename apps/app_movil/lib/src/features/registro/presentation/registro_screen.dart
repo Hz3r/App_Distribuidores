@@ -276,6 +276,7 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
       case ResultadoCrearCuenta.requiereConfirmarCorreo:
         context.go(AppRutas.revisaCorreo, extra: datos.correo);
       case ResultadoCrearCuenta.correoYaRegistrado:
+      case ResultadoCrearCuenta.contrasenaDebil:
       case ResultadoCrearCuenta.sinConexion:
       case ResultadoCrearCuenta.error:
         setState(() {
@@ -394,6 +395,8 @@ class _Fallo extends StatelessWidget {
       ResultadoCrearCuenta.requiereConfirmarCorreo => null,
       ResultadoCrearCuenta.correoYaRegistrado =>
         'Ya existe una cuenta con este correo.',
+      ResultadoCrearCuenta.contrasenaDebil =>
+        'Elige una contraseña más segura.',
       ResultadoCrearCuenta.sinConexion =>
         'Revisa tu conexión e inténtalo de nuevo.',
       ResultadoCrearCuenta.error =>

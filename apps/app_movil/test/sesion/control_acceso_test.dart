@@ -276,17 +276,71 @@ void main() {
       expect(acceso.aviso, isNull);
     });
 
-    test('si el canje no vincula: limpia igual, no completa y deja el '
-        'aviso', () async {
+    test('si el canje no vincula y no hay membresía en ese distribuidor: '
+        'intenta completar, limpia y deja el aviso', () async {
       invitaciones.canjeOk = false;
+      repositorio.membresias = [membresia('d2')];
 
       await emitir(true);
 
-      expect(bitacora, ['canjear AB2CD3E4', 'limpiar', 'listar']);
-      expect(cuentas.completados, isEmpty);
+      // Completar se intenta igual: el canje pudo haberse confirmado antes
+      // sin que la app lo supiera. La BD rechaza a quien no es cliente ahí.
+      expect(bitacora, [
+        'canjear AB2CD3E4',
+        'completar d1',
+        'limpiar',
+        'listar',
+      ]);
       final acceso = leer() as ConAcceso;
-      expect(acceso.membresias, isEmpty);
+      expect(acceso.membresias.map((m) => m.distribuidorId), ['d2']);
       expect(acceso.aviso, aviso);
+    });
+
+    test('un canje confirmado cuya respuesta se perdió: el reintento no '
+        'vincula, pero completa los datos, limpia y entra sin aviso', () async {
+      final cliente = membresia('d1');
+      repositorio.membresias = [cliente];
+      invitaciones.errorCanje = Exception('respuesta perdida');
+
+      await emitir(true);
+      expect(leer(), isA<ErrorAcceso>());
+      expect(cuentas.completados, isEmpty);
+      expect(cuentas.pendiente, same(pendiente));
+
+      // El servidor sí lo canjeó: ahora el código ya está usado.
+      invitaciones
+        ..errorCanje = null
+        ..canjeOk = false;
+      bitacora.clear();
+      await container.read(controlAccesoProvider.notifier).recargar();
+
+      expect(bitacora, [
+        'canjear AB2CD3E4',
+        'completar d1',
+        'limpiar',
+        'listar',
+      ]);
+      expect(cuentas.completados.single.$1, 'd1');
+      expect(cuentas.pendiente, isNull);
+      final acceso = leer() as ConAcceso;
+      expect(acceso.activa, cliente);
+      expect(acceso.aviso, isNull);
+    });
+
+    test('un canje de una sesión anterior que termina tarde no completa ni '
+        'limpia', () async {
+      invitaciones.canjePendiente = Completer<bool>();
+
+      await emitir(true);
+      expect(invitaciones.canjes, ['AB2CD3E4']);
+
+      await emitir(false);
+      invitaciones.canjePendiente!.complete(true);
+      await pumpEventQueue();
+
+      expect(cuentas.completados, isEmpty);
+      expect(cuentas.limpiezas, 0);
+      expect(leer(), isA<SinSesion>());
     });
 
     test('si completar los datos falla, entra igual y limpia', () async {
@@ -348,11 +402,13 @@ void main() {
       cuentas.errorLimpiar = Exception('sin red');
 
       await emitir(true);
+      expect(cuentas.completados, hasLength(1));
       expect((leer() as ConAcceso).aviso, aviso);
 
       await container.read(controlAccesoProvider.notifier).recargar();
 
       expect(invitaciones.canjes, ['AB2CD3E4']);
+      expect(cuentas.completados, hasLength(1));
       expect(leer(), isA<ConAcceso>());
     });
 

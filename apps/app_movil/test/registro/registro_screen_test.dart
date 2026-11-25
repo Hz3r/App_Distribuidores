@@ -349,6 +349,7 @@ void main() {
     });
 
     final mensajes = {
+      ResultadoCrearCuenta.contrasenaDebil: 'Elige una contraseña más segura.',
       ResultadoCrearCuenta.sinConexion:
           'Revisa tu conexión e inténtalo de nuevo.',
       ResultadoCrearCuenta.error:

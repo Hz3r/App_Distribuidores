@@ -61,15 +61,6 @@ final class NegocioPrevio {
   final String? telefono;
 }
 
-/// Lo que la pantalla de código le pasa al registro: el código ya validado
-/// y lo que se vio de la invitación.
-final class DatosRegistro {
-  const DatosRegistro({required this.codigo, required this.invitacion});
-
-  final String codigo;
-  final InvitacionPrevia invitacion;
-}
-
 /// Los valores de `rol_membresia` en la BD coinciden con los nombres de
 /// [RolMembresia].
 RolMembresia _rolDesde(Object? valor) {

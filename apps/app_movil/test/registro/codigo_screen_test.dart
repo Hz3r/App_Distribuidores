@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app_movil/src/config/rutas.dart';
+import 'package:app_movil/src/features/registro/domain/argumentos_registro.dart';
 import 'package:app_movil/src/features/registro/domain/invitacion_previa.dart';
 import 'package:app_movil/src/features/registro/domain/invitaciones_repositorio.dart';
 import 'package:app_movil/src/features/sesion/domain/acceso.dart';
@@ -29,6 +30,7 @@ const conSesion = ConAcceso(membresias: [], activa: null);
 
 final campo = find.byType(TextField);
 final continuar = find.widgetWithText(FilledButton, 'Continuar');
+final reintentar = find.widgetWithText(TextButton, 'Reintentar');
 
 /// Monta la app y abre la pantalla de código.
 Future<GoRouter> abrirCodigo(
@@ -117,6 +119,7 @@ void main() {
   });
 
   group('cada resultado muestra su texto', () {
+    // Los fallos que se pueden reintentar muestran el botón "Reintentar".
     final casos = <String, (ResultadoConsulta, List<String>)>{
       'válido con bodega': (
         const CodigoValido(invitacionBodega),
@@ -138,6 +141,14 @@ void main() {
         const ConsultaSinConexion(),
         ['No pudimos comprobar el código. Revisa tu conexión.'],
       ),
+      'con error': (
+        const ConsultaConError(),
+        ['No pudimos comprobar el código. Inténtalo de nuevo.'],
+      ),
+    };
+    bool sePuedeReintentar(ResultadoConsulta r) => switch (r) {
+      ConsultaFrenada() || ConsultaSinConexion() || ConsultaConError() => true,
+      CodigoValido() || CodigoNoValido() => false,
     };
 
     for (final MapEntry(key: nombre, value: (resultado, textos))
@@ -153,8 +164,31 @@ void main() {
           expect(find.text(texto), findsOneWidget, reason: texto);
         }
         expect(continuarHabilitado(tester), resultado is CodigoValido);
+        expect(
+          reintentar,
+          sePuedeReintentar(resultado) ? findsOneWidget : findsNothing,
+        );
       });
     }
+  });
+
+  testWidgets('tras "sin conexión", Reintentar consulta de nuevo el mismo '
+      'código una sola vez, aunque se toque dos veces', (tester) async {
+    repositorio.respuesta = const ConsultaSinConexion();
+    await abrirCodigo(tester, repositorio: repositorio);
+
+    await tester.enterText(campo, 'AB2CD3E4');
+    await tester.pumpAndSettle();
+    expect(repositorio.consultas, ['AB2CD3E4']);
+
+    repositorio.respuesta = const CodigoValido(invitacionBodega);
+    await tester.tap(reintentar);
+    await tester.tap(reintentar, warnIfMissed: false);
+    await tester.pumpAndSettle();
+
+    expect(repositorio.consultas, ['AB2CD3E4', 'AB2CD3E4']);
+    expect(find.text('Código válido'), findsOneWidget);
+    expect(reintentar, findsNothing);
   });
 
   testWidgets('Continuar está deshabilitado hasta que el código es válido', (
@@ -215,10 +249,33 @@ void main() {
 
     final estado = router.state;
     expect(estado.matchedLocation, AppRutas.registro);
-    final datos = estado.extra! as DatosRegistro;
-    expect(datos.codigo, 'AB2CD3E4');
-    expect(datos.invitacion, same(invitacionBodega));
+    final argumentos = estado.extra! as ArgumentosRegistro;
+    expect(argumentos.codigo, 'AB2CD3E4');
+    expect(argumentos.invitacion, same(invitacionBodega));
     expect(repositorio.canjes, isEmpty);
+  });
+
+  testWidgets('sin sesión, dos toques en Continuar abren el registro una '
+      'sola vez', (tester) async {
+    repositorio.respuesta = const CodigoValido(invitacionBodega);
+    final router = await abrirCodigo(tester, repositorio: repositorio);
+
+    await tester.enterText(campo, 'AB2CD3E4');
+    await tester.pumpAndSettle();
+    await tester.tap(continuar);
+    await tester.tap(continuar);
+    await tester.pumpAndSettle();
+    expect(router.state.matchedLocation, AppRutas.registro);
+
+    // Con un solo registro apilado, volver deja en la pantalla de código.
+    router.pop();
+    await tester.pumpAndSettle();
+    expect(router.state.matchedLocation, AppRutas.codigo);
+
+    // Y se puede volver a continuar.
+    await tester.tap(continuar);
+    await tester.pumpAndSettle();
+    expect(router.state.matchedLocation, AppRutas.registro);
   });
 
   testWidgets('el registro sin datos vuelve a la pantalla de código', (

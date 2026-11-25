@@ -25,17 +25,29 @@ class InvitacionesRepositorioSupabase implements InvitacionesRepositorio {
         params: {'p_codigo': codigo},
       );
       if (datos == null) return const CodigoNoValido();
+      return _leer(datos);
+    } on PostgrestException catch (e, st) {
+      if (e.code == _codigoFrenada) return const ConsultaFrenada();
+      // La BD respondió, pero con otro error: no es un problema de red.
+      _registrar(e, st);
+      return const ConsultaConError();
+    } catch (e, st) {
+      // Red caída o tiempo agotado.
+      _registrar(e, st);
+      return const ConsultaSinConexion();
+    }
+  }
+
+  /// Una respuesta que no tiene la forma del contrato es un error de la BD,
+  /// no de la red.
+  ResultadoConsulta _leer(Object datos) {
+    try {
       return CodigoValido(
         InvitacionPrevia.desdeJson(Map<String, dynamic>.from(datos as Map)),
       );
-    } on PostgrestException catch (e, st) {
-      if (e.code == _codigoFrenada) return const ConsultaFrenada();
-      _registrar(e, st);
-      return const ConsultaSinConexion();
     } catch (e, st) {
-      // Red caída, tiempo agotado o una respuesta que no se pudo leer.
       _registrar(e, st);
-      return const ConsultaSinConexion();
+      return const ConsultaConError();
     }
   }
 

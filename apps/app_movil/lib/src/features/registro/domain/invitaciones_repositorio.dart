@@ -23,16 +23,24 @@ final class ConsultaFrenada extends ResultadoConsulta {
   const ConsultaFrenada();
 }
 
-/// No se pudo hacer la consulta (red u otro fallo).
+/// No se pudo hacer la consulta: no hubo respuesta (red caída, tiempo
+/// agotado).
 final class ConsultaSinConexion extends ResultadoConsulta {
   const ConsultaSinConexion();
+}
+
+/// La BD respondió con un error que no es el freno, o con una respuesta que
+/// no se pudo leer.
+final class ConsultaConError extends ResultadoConsulta {
+  const ConsultaConError();
 }
 
 /// Acceso a las invitaciones. Las decisiones (cuándo consultar, qué mostrar)
 /// están en `presentation/registro_providers.dart`, no aquí.
 abstract interface class InvitacionesRepositorio {
   /// Consulta un código sin necesidad de sesión. No lanza: los fallos
-  /// llegan como [ConsultaFrenada] o [ConsultaSinConexion].
+  /// llegan como [ConsultaFrenada], [ConsultaSinConexion] o
+  /// [ConsultaConError].
   Future<ResultadoConsulta> consultar(String codigo);
 
   /// Canjea con la sesión actual. true si quedó vinculada.

@@ -112,7 +112,7 @@ final class IngresoCodigoProvider
   }
 }
 
-String _$ingresoCodigoHash() => r'edf01d12380b3c8bfaf125c02b7da36d0b4ece92';
+String _$ingresoCodigoHash() => r'9a42067bea2d58e415c6fc34a5f7af736dea7900';
 
 /// Lógica de la pantalla de código: consulta el código cuando se completa y
 /// canjea cuando ya hay sesión. Sin Flutter, para probarla con un doble del

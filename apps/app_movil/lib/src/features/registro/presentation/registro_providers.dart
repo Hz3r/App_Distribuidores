@@ -59,6 +59,13 @@ final class EstadoIngresoCodigo {
   };
 
   bool get puedeContinuar => invitacion != null && !canjeando;
+
+  /// La consulta falló por algo que puede cambiar al reintentar (red, freno
+  /// o error de la BD), no porque el código no sirva.
+  bool get puedeReintentar => switch (consulta) {
+    ConsultaFrenada() || ConsultaSinConexion() || ConsultaConError() => true,
+    CodigoValido() || CodigoNoValido() || null => false,
+  };
 }
 
 /// Lógica de la pantalla de código: consulta el código cuando se completa y
@@ -82,6 +89,17 @@ class IngresoCodigo extends _$IngresoCodigo {
     final consulta = ++_consulta;
     state = EstadoIngresoCodigo(codigo: codigo);
     if (codigoCompleto(codigo)) _consultar(codigo, consulta);
+  }
+
+  /// Vuelve a consultar el mismo código tras un fallo que se puede
+  /// reintentar. Es la única forma de consultar dos veces el mismo código;
+  /// un segundo toque no hace nada porque la consulta ya está en curso.
+  void reintentar() {
+    if (!state.puedeReintentar) return;
+    final codigo = state.codigo;
+    final consulta = ++_consulta;
+    state = EstadoIngresoCodigo(codigo: codigo);
+    _consultar(codigo, consulta);
   }
 
   /// Canjea el código válido con la sesión actual. Si vincula, recarga el

@@ -8,7 +8,7 @@ import '../features/carrito/presentation/carrito_screen.dart';
 import '../features/catalogo/presentation/catalogo_screen.dart';
 import '../features/checkout/presentation/checkout_screen.dart';
 import '../features/perfil/presentation/perfil_screen.dart';
-import '../features/registro/domain/invitacion_previa.dart';
+import '../features/registro/domain/argumentos_registro.dart';
 import '../features/registro/presentation/bienvenida_screen.dart';
 import '../features/registro/presentation/codigo_screen.dart';
 import '../features/pedidos/presentation/pedidos_screen.dart';
@@ -54,7 +54,7 @@ GoRouter appRouter(Ref ref) {
         path: AppRutas.registro,
         // Sin el código validado no hay nada que registrar.
         redirect: (_, state) =>
-            state.extra is DatosRegistro ? null : AppRutas.codigo,
+            state.extra is ArgumentosRegistro ? null : AppRutas.codigo,
         // Marcador: la Tarea 3 pone aquí el formulario de registro.
         builder: (_, _) => const PantallaPlaceholder(
           titulo: 'Registro',

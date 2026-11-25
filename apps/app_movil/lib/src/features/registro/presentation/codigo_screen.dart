@@ -6,6 +6,7 @@ import '../../../config/rutas.dart';
 import '../../../shared/tema_app.dart';
 import '../../sesion/domain/acceso.dart';
 import '../../sesion/presentation/control_acceso.dart';
+import '../domain/argumentos_registro.dart';
 import '../domain/invitacion_previa.dart';
 import '../domain/invitaciones_repositorio.dart';
 import 'registro_providers.dart';
@@ -13,11 +14,20 @@ import 'widgets/casillas_codigo.dart';
 
 /// Ingreso del código de invitación. Sin sesión lleva al registro; con
 /// sesión canjea el código directamente (para sumar otro distribuidor).
-class CodigoScreen extends ConsumerWidget {
+class CodigoScreen extends ConsumerStatefulWidget {
   const CodigoScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CodigoScreen> createState() => _CodigoScreenState();
+}
+
+class _CodigoScreenState extends ConsumerState<CodigoScreen> {
+  /// El registro está abierto encima: evita apilarlo dos veces con dos
+  /// toques rápidos en Continuar.
+  var _abriendoRegistro = false;
+
+  @override
+  Widget build(BuildContext context) {
     final estado = ref.watch(ingresoCodigoProvider);
     final textos = Theme.of(context).textTheme;
 
@@ -71,13 +81,16 @@ class CodigoScreen extends ConsumerWidget {
                           .cambiarCodigo,
                     ),
                     const SizedBox(height: 20),
-                    _EstadoConsulta(estado: estado),
+                    _EstadoConsulta(
+                      estado: estado,
+                      onReintentar: ref
+                          .read(ingresoCodigoProvider.notifier)
+                          .reintentar,
+                    ),
                     const Spacer(),
                     const SizedBox(height: 24),
                     FilledButton(
-                      onPressed: estado.puedeContinuar
-                          ? () => _continuar(context, ref)
-                          : null,
+                      onPressed: estado.puedeContinuar ? _continuar : null,
                       child: const Text('Continuar'),
                     ),
                     const SizedBox(height: 16),
@@ -111,16 +124,26 @@ class CodigoScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _continuar(BuildContext context, WidgetRef ref) async {
+  Future<void> _continuar() async {
     final estado = ref.read(ingresoCodigoProvider);
     final invitacion = estado.invitacion;
     if (invitacion == null) return;
 
     if (ref.read(controlAccesoProvider) is SinSesion) {
-      await context.push(
-        AppRutas.registro,
-        extra: DatosRegistro(codigo: estado.codigo, invitacion: invitacion),
-      );
+      if (_abriendoRegistro) return;
+      _abriendoRegistro = true;
+      try {
+        // El futuro termina cuando se vuelve del registro.
+        await context.push(
+          AppRutas.registro,
+          extra: ArgumentosRegistro(
+            codigo: estado.codigo,
+            invitacion: invitacion,
+          ),
+        );
+      } finally {
+        _abriendoRegistro = false;
+      }
       return;
     }
     await ref.read(ingresoCodigoProvider.notifier).canjear();
@@ -129,9 +152,10 @@ class CodigoScreen extends ConsumerWidget {
 
 /// Lo que se sabe del código: consultando, el resultado o el fallo del canje.
 class _EstadoConsulta extends StatelessWidget {
-  const _EstadoConsulta({required this.estado});
+  const _EstadoConsulta({required this.estado, required this.onReintentar});
 
   final EstadoIngresoCodigo estado;
+  final VoidCallback onReintentar;
 
   @override
   Widget build(BuildContext context) {
@@ -159,6 +183,9 @@ class _EstadoConsulta extends StatelessWidget {
       ConsultaSinConexion() => const _Error(
         'No pudimos comprobar el código. Revisa tu conexión.',
       ),
+      ConsultaConError() => const _Error(
+        'No pudimos comprobar el código. Inténtalo de nuevo.',
+      ),
     };
     final fallo = switch (estado.falloCanje) {
       null => null,
@@ -178,6 +205,14 @@ class _EstadoConsulta extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ?aviso,
+          if (estado.puedeReintentar)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton(
+                onPressed: onReintentar,
+                child: const Text('Reintentar'),
+              ),
+            ),
           if (fallo != null) ...[const SizedBox(height: 12), fallo],
         ],
       ),

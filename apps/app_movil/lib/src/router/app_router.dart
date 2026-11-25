@@ -8,12 +8,16 @@ import '../features/carrito/presentation/carrito_screen.dart';
 import '../features/catalogo/presentation/catalogo_screen.dart';
 import '../features/checkout/presentation/checkout_screen.dart';
 import '../features/perfil/presentation/perfil_screen.dart';
+import '../features/registro/domain/invitacion_previa.dart';
+import '../features/registro/presentation/bienvenida_screen.dart';
+import '../features/registro/presentation/codigo_screen.dart';
 import '../features/pedidos/presentation/pedidos_screen.dart';
 import '../features/repartidor/presentation/repartidor_screen.dart';
 import '../features/seleccion_distribuidor/presentation/seleccion_distribuidor_screen.dart';
 import '../features/sesion/presentation/cargando_screen.dart';
 import '../features/sesion/presentation/control_acceso.dart';
 import '../features/sesion/presentation/error_acceso_screen.dart';
+import '../shared/widgets/pantalla_placeholder.dart';
 import '../shared/widgets/sin_rol_screen.dart';
 import 'destino.dart';
 
@@ -32,7 +36,7 @@ GoRouter appRouter(Ref ref) {
   ref.listen(controlAccesoProvider, (_, _) => refresco.avisar());
 
   final router = GoRouter(
-    initialLocation: AppRutas.auth,
+    initialLocation: AppRutas.bienvenida,
     refreshListenable: refresco,
     redirect: (context, state) {
       return destinoRedireccion(
@@ -41,6 +45,29 @@ GoRouter appRouter(Ref ref) {
       );
     },
     routes: [
+      GoRoute(
+        path: AppRutas.bienvenida,
+        builder: (_, _) => const BienvenidaScreen(),
+      ),
+      GoRoute(path: AppRutas.codigo, builder: (_, _) => const CodigoScreen()),
+      GoRoute(
+        path: AppRutas.registro,
+        // Sin el código validado no hay nada que registrar.
+        redirect: (_, state) =>
+            state.extra is DatosRegistro ? null : AppRutas.codigo,
+        // Marcador: la Tarea 3 pone aquí el formulario de registro.
+        builder: (_, _) => const PantallaPlaceholder(
+          titulo: 'Registro',
+          descripcion: 'Registro del negocio. Pendiente: formulario.',
+        ),
+      ),
+      GoRoute(
+        path: AppRutas.revisaCorreo,
+        builder: (_, _) => const PantallaPlaceholder(
+          titulo: 'Revisa tu correo',
+          descripcion: 'Confirmación del correo. Pendiente.',
+        ),
+      ),
       GoRoute(path: AppRutas.auth, builder: (_, _) => const AuthScreen()),
       GoRoute(
         path: AppRutas.cargando,

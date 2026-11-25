@@ -1,10 +1,11 @@
-import 'package:core/core.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'src/router/app_router.dart';
+import 'src/shared/tema_app.dart';
 
-/// Raíz de la app móvil. El tema se reemplazará con el ConfigTema del distribuidor.
+/// Raíz de la app móvil. El tema se reemplazará con el ConfigTema del
+/// distribuidor.
 class AppMovil extends ConsumerWidget {
   const AppMovil({super.key});
 
@@ -15,7 +16,7 @@ class AppMovil extends ConsumerWidget {
     return MaterialApp.router(
       title: 'Distribuidores',
       debugShowCheckedModeBanner: false,
-      theme: ThemeBuilder.desde(const ConfigTema(nombre: 'Distribuidores')),
+      theme: temaApp(),
       routerConfig: router,
     );
   }

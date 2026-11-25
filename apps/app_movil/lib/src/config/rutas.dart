@@ -1,5 +1,17 @@
 /// Rutas de la app móvil. Única fuente de verdad para go_router.
 abstract final class AppRutas {
+  /// Primera pantalla sin sesión.
+  static const String bienvenida = '/bienvenida';
+
+  /// Ingreso del código de invitación; también con sesión, para sumar otro
+  /// distribuidor.
+  static const String codigo = '/codigo';
+
+  /// Registro de la cuenta; recibe el código y la invitación por `extra`.
+  static const String registro = '/registro';
+  static const String revisaCorreo = '/revisa-correo';
+
+  /// Ingreso con una cuenta existente.
   static const String auth = '/auth';
   static const String cargando = '/cargando';
   static const String errorAcceso = '/error-acceso';

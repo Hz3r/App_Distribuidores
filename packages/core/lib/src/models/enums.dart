@@ -16,17 +16,6 @@ enum EstadoPedido {
   cancelado,
 }
 
-/// Rol del usuario dentro de un distribuidor.
-/// Solo lo usa apps/panel_web hasta que migre a [RolMembresia].
-enum RolUsuario {
-  @JsonValue('admin')
-  admin,
-  @JsonValue('cliente')
-  cliente,
-  @JsonValue('repartidor')
-  repartidor,
-}
-
 /// Rol de una membresía o invitación (`rol_membresia` en la BD).
 enum RolMembresia {
   @JsonValue('admin')

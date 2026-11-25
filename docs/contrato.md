@@ -574,8 +574,8 @@ Enums (`enums.dart`, con `@JsonValue` del valor de la BD): `EstadoPedido`, `RolM
 `EstadoMembresia`, `EstadoDistribuidor`, `TipoMovimientoStock`, `DespachoPedido`,
 `CondicionPago`, `MetodoPago`, `EstadoPago`, `EstadoSuscripcion`.
 
-`RolUsuario` queda en `enums.dart` **solo para `apps/panel_web`**, hasta que el panel migre a
-`RolMembresia` (sección 7). No usarlo en código nuevo. Se eliminaron `Usuario` y `TipoPresentacion`.
+Se eliminaron `Usuario`, `TipoPresentacion` y `RolUsuario` (el panel ya usa `RolMembresia`,
+sección 7).
 
 ### Relaciones embebidas
 
@@ -645,8 +645,15 @@ Estado de cada app:
 - **`user_metadata.distribuidor_activo` es la preferencia de la app móvil.** El panel debe usar
   su propia clave (por ejemplo `distribuidor_activo_panel`): una persona puede ser `admin` en un
   distribuidor y `cliente` en otro, y cada app elige entre membresías distintas.
-- **`panel_web`: pendiente de migrar.** Todavía lee `app_metadata.rol` (con `RolUsuario`). La
-  migración la hace su dueño (Jair103).
+- **`panel_web`: ya lo implementa** (`features/sesion`, mismo diseño que la app móvil). Entra con
+  correo y contraseña. Lee las membresías de la persona con
+  `select('*, distribuidor:distribuidores(*)')` filtrando por `perfil_id`, y se queda con las
+  **útiles para el panel**: `estado = 'activa'`, rol `admin` o `vendedor` y distribuidor visible.
+  Ninguna → pantalla "Sin acceso al panel"; una → entra directo; varias → elige en
+  `seleccion-distribuidor`. La preferencia se guarda en
+  **`user_metadata.distribuidor_activo_panel`**. La sección Configuración es solo del `admin`.
+  Si el distribuidor está `suspendido` o `cancelado`, el panel sigue abierto y muestra un aviso
+  fijo (la BD ya rechaza los pedidos nuevos con `P0003`).
 
 ---
 

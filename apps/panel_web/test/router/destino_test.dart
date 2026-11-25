@@ -1,49 +1,187 @@
 import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:panel_web/src/config/rutas.dart';
+import 'package:panel_web/src/features/sesion/domain/acceso.dart';
 import 'package:panel_web/src/router/destino.dart';
 
+import '../soporte/dobles.dart';
+
 void main() {
+  final admin = membresia('d1');
+  final vendedor = membresia('d1', rol: RolMembresia.vendedor);
+
   group('destinoRedireccion (panel)', () {
-    test('sin sesión manda a auth', () {
+    test('sin sesión en una ruta de paso manda a auth, sin "desde"', () {
       expect(
         destinoRedireccion(
-          haySesion: false,
-          rol: null,
-          ubicacion: AppRutas.dashboard,
+          acceso: const SinSesion(),
+          ubicacion: AppRutas.cargando,
         ),
         AppRutas.auth,
       );
     });
 
-    test('admin que entra a auth va al dashboard', () {
+    test('sin sesión en una sección manda a auth recordando la sección', () {
       expect(
         destinoRedireccion(
-          haySesion: true,
-          rol: RolUsuario.admin,
+          acceso: const SinSesion(),
+          ubicacion: AppRutas.pedidos,
+        ),
+        '/auth?desde=%2Fpedidos',
+      );
+    });
+
+    test('sin sesión y ya en auth no redirige', () {
+      expect(
+        destinoRedireccion(
+          acceso: const SinSesion(),
           ubicacion: AppRutas.auth,
+          desde: AppRutas.pedidos,
+        ),
+        isNull,
+      );
+    });
+
+    test('cargando conserva el "desde" que ya traía', () {
+      expect(
+        destinoRedireccion(
+          acceso: const Cargando(),
+          ubicacion: AppRutas.auth,
+          desde: AppRutas.pedidos,
+        ),
+        '/cargando?desde=%2Fpedidos',
+      );
+    });
+
+    test('un error de acceso manda a su pantalla', () {
+      expect(
+        destinoRedireccion(
+          acceso: const ErrorAcceso('x'),
+          ubicacion: AppRutas.cargando,
+        ),
+        AppRutas.errorAcceso,
+      );
+    });
+
+    test('sin membresías útiles manda a sin acceso', () {
+      expect(
+        destinoRedireccion(
+          acceso: const ConAcceso(membresias: <Membresia>[], activa: null),
+          ubicacion: AppRutas.dashboard,
+        ),
+        '/sin-acceso?desde=%2Fdashboard',
+      );
+    });
+
+    test('con varias membresías y ninguna elegida manda a elegir', () {
+      expect(
+        destinoRedireccion(
+          acceso: ConAcceso(membresias: [admin, membresia('d2')], activa: null),
+          ubicacion: AppRutas.cargando,
+        ),
+        AppRutas.seleccionDistribuidor,
+      );
+    });
+
+    test('con membresía activa sale de una ruta de paso al dashboard', () {
+      for (final paso in [
+        AppRutas.auth,
+        AppRutas.cargando,
+        AppRutas.errorAcceso,
+        AppRutas.sinAcceso,
+      ]) {
+        expect(
+          destinoRedireccion(acceso: accesoCon(admin), ubicacion: paso),
+          AppRutas.dashboard,
+          reason: paso,
+        );
+      }
+    });
+
+    test('con membresía activa vuelve a la sección que se pidió', () {
+      expect(
+        destinoRedireccion(
+          acceso: accesoCon(admin),
+          ubicacion: AppRutas.cargando,
+          desde: AppRutas.pedidos,
+        ),
+        AppRutas.pedidos,
+      );
+    });
+
+    test('un "desde" que no es una sección del panel se ignora', () {
+      for (final malo in [
+        'https://ejemplo.com',
+        '//ejemplo.com',
+        '/auth',
+        '/pedidos?x=1',
+        'pedidos',
+      ]) {
+        expect(
+          destinoRedireccion(
+            acceso: accesoCon(admin),
+            ubicacion: AppRutas.cargando,
+            desde: malo,
+          ),
+          AppRutas.dashboard,
+          reason: malo,
+        );
+      }
+    });
+
+    test('en una sección válida no redirige', () {
+      expect(
+        destinoRedireccion(
+          acceso: accesoCon(admin),
+          ubicacion: AppRutas.pedidos,
+        ),
+        isNull,
+      );
+    });
+
+    test('el vendedor no entra a Configuración, ni volviendo con "desde"', () {
+      expect(
+        destinoRedireccion(
+          acceso: accesoCon(vendedor),
+          ubicacion: AppRutas.configuracion,
+        ),
+        AppRutas.dashboard,
+      );
+      expect(
+        destinoRedireccion(
+          acceso: accesoCon(vendedor),
+          ubicacion: AppRutas.cargando,
+          desde: AppRutas.configuracion,
         ),
         AppRutas.dashboard,
       );
     });
 
-    test('cliente no tiene acceso al panel', () {
+    test('el admin sí entra a Configuración', () {
       expect(
         destinoRedireccion(
-          haySesion: true,
-          rol: RolUsuario.cliente,
-          ubicacion: AppRutas.productos,
+          acceso: accesoCon(admin),
+          ubicacion: AppRutas.configuracion,
         ),
-        AppRutas.sinAcceso,
+        isNull,
       );
     });
 
-    test('admin en una ruta válida no se redirige', () {
+    test('elegir distribuidor solo se queda si hay más de uno', () {
       expect(
         destinoRedireccion(
-          haySesion: true,
-          rol: RolUsuario.admin,
-          ubicacion: AppRutas.pedidos,
+          acceso: accesoCon(admin),
+          ubicacion: AppRutas.seleccionDistribuidor,
+        ),
+        AppRutas.dashboard,
+      );
+      expect(
+        destinoRedireccion(
+          acceso: ConAcceso(
+            membresias: [admin, membresia('d2')],
+            activa: admin,
+          ),
+          ubicacion: AppRutas.seleccionDistribuidor,
         ),
         isNull,
       );

@@ -58,7 +58,7 @@
   - Tabla `public.intentos_consulta (id, direccion_red text not null, exitoso boolean not null, creado_en)`, con RLS y sin ningún `grant`; índice por `(direccion_red, creado_en)`.
   - `public.consultar_invitacion(p_codigo text) returns jsonb`, `security definer`, concedida a `anon` y `authenticated`.
     - Normaliza con `upper(trim(...))`.
-    - Dirección de red: primer elemento de la cabecera `x-forwarded-for` (`current_setting('request.headers', true)::jsonb ->> 'x-forwarded-for'`, cortada en la primera coma y con `trim`); si no hay, `'desconocida'`.
+    - Dirección de red, de `current_setting('request.headers', true)::jsonb`: la cabecera `cf-connecting-ip` si existe; si no, el **último** elemento de `x-forwarded-for`; si no, `'desconocida'`. (Corregido tras la revisión: el primer elemento de `x-forwarded-for` lo controla el cliente.)
     - Antes de contar toma `pg_advisory_xact_lock` sobre esa dirección. Con 5 o más consultas fallidas de esa dirección en los últimos 15 minutos lanza `P0005`.
     - Devuelve `null` (y registra un intento fallido) si el código no existe, está usado, revocado, vencido o su bodega está inactiva. No lanza error en esos casos, para que el registro del intento no se revierta.
     - Si es canjeable registra un intento exitoso y devuelve:

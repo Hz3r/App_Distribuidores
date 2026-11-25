@@ -50,6 +50,6 @@ void main() {
     await tester.tap(find.text('Ya tengo cuenta · Ingresar'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Ingreso'), findsOneWidget);
+    expect(find.text('Ingresa a tu cuenta'), findsOneWidget);
   });
 }

@@ -27,6 +27,9 @@ abstract final class ColoresApp {
   static const texto = Color(0xFF0F172A);
   static const textoSuave = Color(0xFF64748B);
   static const borde = Color(0xFFE2E8F0);
+
+  /// Fondo de los campos de solo lectura.
+  static const fondoSoloLectura = Color(0xFFF1F5F9);
   static const exito = Color(0xFF0F766E);
   static const fondoExito = Color(0xFFD7F5EE);
   static const error = Color(0xFFB91C1C);

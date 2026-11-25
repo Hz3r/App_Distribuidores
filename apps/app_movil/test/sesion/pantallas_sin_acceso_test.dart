@@ -1,3 +1,4 @@
+import 'package:app_movil/src/config/rutas.dart';
 import 'package:app_movil/src/features/sesion/domain/acceso.dart';
 import 'package:app_movil/src/features/sesion/presentation/control_acceso.dart';
 import 'package:app_movil/src/features/sesion/presentation/error_acceso_screen.dart';
@@ -6,6 +7,8 @@ import 'package:core/core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+
+import '../registro/dobles.dart' as dobles;
 
 /// Controlador falso: parte de un acceso fijo y cuenta las llamadas. No toca
 /// `Supabase.instance`.
@@ -80,6 +83,47 @@ void main() {
 
       expect(
         find.text('No pudimos cerrar tu sesión. Inténtalo de nuevo.'),
+        findsOneWidget,
+      );
+    });
+  });
+
+  group('SinRolScreen en la app', () {
+    testWidgets('sin aviso no lo muestra; "Tengo un código" lleva a la '
+        'pantalla de código', (tester) async {
+      final router = await dobles.montarApp(
+        tester,
+        control: dobles.ControlAccesoFalso(
+          const ConAcceso(membresias: <Membresia>[], activa: null),
+        ),
+      );
+      expect(router.state.matchedLocation, AppRutas.sinRol);
+      expect(find.textContaining('No pudimos vincular'), findsNothing);
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Tengo un código'));
+      await tester.pumpAndSettle();
+
+      expect(router.state.matchedLocation, AppRutas.codigo);
+    });
+
+    testWidgets('muestra el aviso de un canje que no vinculó', (tester) async {
+      await dobles.montarApp(
+        tester,
+        control: dobles.ControlAccesoFalso(
+          const ConAcceso(
+            membresias: <Membresia>[],
+            activa: null,
+            aviso:
+                'No pudimos vincular tu código. Pide uno nuevo a tu '
+                'distribuidor.',
+          ),
+        ),
+      );
+
+      expect(
+        find.text(
+          'No pudimos vincular tu código. Pide uno nuevo a tu distribuidor.',
+        ),
         findsOneWidget,
       );
     });

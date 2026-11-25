@@ -667,9 +667,8 @@ Tras iniciar sesión, la app:
    membresía de otra persona.
 2. Si hay varias, la persona elige el distribuidor; la app lo guarda como distribuidor activo.
 3. Redirige según el rol de esa membresía (`cliente`, `repartidor`, o `admin`/`vendedor` en el
-   panel). Sin membresías útiles, la app móvil muestra una pantalla sin acceso (con reintentar y
-   cerrar sesión), **sin opción de canje**: el canje de un código (`canjear_invitacion`) está
-   pendiente de construir en la app.
+   panel). Sin membresías útiles, la app móvil muestra una pantalla sin acceso (con reintentar,
+   "Tengo un código" para canjear uno y cerrar sesión).
 
 Una membresía de cliente cuya bodega está inactiva sigue en `estado = 'activa'` en `membresias`,
 pero **no cuenta**: el distribuidor, el catálogo y los pedidos dejan de ser visibles y
@@ -678,7 +677,45 @@ en catálogo o pedidos como "sin acceso a este distribuidor", no como un error g
 
 Estado de cada app:
 
-- **`app_movil`: ya lo implementa.** Lee las membresías de la persona con
+- **`app_movil`: ingreso y registro por invitación.** La app móvil ingresa con **correo y
+  contraseña** (`auth.signInWithPassword`), igual que el panel; no hay ingreso por SMS. Quien no
+  tiene cuenta entra con el código de su distribuidor:
+  1. Consulta el código sin sesión (`consultar_invitacion`) y ve a quién se une.
+  2. Completa el formulario: los datos de la bodega llegan como los cargó el distribuidor (el
+     nombre es de solo lectura; el RUC o DNI solo se escribe si venía vacío; celular y dirección
+     se pueden corregir). Las invitaciones de personal no muestran datos de bodega.
+  3. Crea la cuenta con `auth.signUp(email, password, data: {...})`. En `data` van
+     **`nombre`** (el trigger lo copia a `perfiles.nombre`) y
+     **`registro_pendiente`**:
+
+     ```json
+     {
+       "registro_pendiente": {
+         "codigo": "AB2CD3E4",
+         "distribuidor_id": "<uuid de consultar_invitacion>",
+         "documento": null, "direccion": "...", "referencia": null, "telefono": "..."
+       }
+     }
+     ```
+
+     La contraseña solo va a `signUp`: nunca a `user_metadata` ni a los registros.
+  4. Si el proyecto exige confirmar el correo, `signUp` no da sesión y la app muestra "Revisa tu
+     correo"; la sesión llega al ingresar. Con confirmación, un correo ya registrado no da error:
+     Supabase devuelve un usuario sin `identities`, y la app lo trata como "ya existe".
+  5. **En cuanto hay sesión** (al crear la cuenta o en cualquier ingreso posterior), antes de leer
+     las membresías, la app lee `user_metadata.registro_pendiente` y, si hay:
+     canjea el código (`canjear_invitacion`); si vinculó y hay datos de bodega, llama
+     `completar_datos_negocio` con el `distribuidor_id` guardado (un fallo aquí se registra y no
+     impide entrar); y **limpia el pendiente vincule o no**
+     (`auth.updateUser(data: {registro_pendiente: null})`): un código que no vincula no se
+     reintenta, y la pantalla sin acceso avisa "No pudimos vincular tu código. Pide uno nuevo a tu
+     distribuidor.". Si el canje no responde (red, `P0005`), el pendiente se conserva y se
+     reintenta en la siguiente carga.
+  6. Con sesión, la pantalla de código canjea directamente (para sumar otro distribuidor).
+
+  `user_metadata.registro_pendiente` es solo de la app móvil y lo escribe la propia persona: la
+  BD sigue validando el código en `canjear_invitacion` y la bodega en `completar_datos_negocio`.
+- **`app_movil`: membresías.** Lee las membresías de la persona con
   `select('*, distribuidor:distribuidores(*), cliente_negocio:clientes_negocio(*)')` filtrando por
   `perfil_id`, y se queda con las **membresías útiles**: `estado = 'activa'`, rol `cliente` o
   `repartidor` (`admin` y `vendedor` usan el panel) y distribuidor visible. Ninguna → pantalla

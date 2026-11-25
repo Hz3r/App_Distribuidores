@@ -5,6 +5,7 @@ import 'package:core/core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../registro/presentation/registro_providers.dart';
 import '../data/membresias_repositorio_supabase.dart';
 import '../domain/acceso.dart';
 import '../domain/membresias_repositorio.dart';
@@ -57,17 +58,34 @@ class ControlAcceso extends _$ControlAcceso {
   /// que este contador es lo que descarta una carga lanzada con otra sesión.
   int _carga = 0;
 
+  /// Canje del registro pendiente en curso. Las cargas que empiezan mientras
+  /// tanto esperan este mismo canje en vez de lanzar otro.
+  Future<String?>? _canjeEnCurso;
+
+  /// Códigos de registros pendientes ya canjeados (vinculen o no). Si
+  /// limpiar el pendiente falló, el código no se vuelve a canjear.
+  final _codigosCanjeados = <String>{};
+
+  /// Aviso para un registro pendiente cuyo código no vinculó.
+  static const avisoNoVinculado =
+      'No pudimos vincular tu código. Pide uno nuevo a tu distribuidor.';
+
   @override
   Acceso build() {
     // Cada reconstrucción (la sesión cambió) invalida las cargas pendientes.
     _carga++;
     // `select` evita reconstruir con eventos que no cambian la sesión (por
-    // ejemplo, el que emite `auth.updateUser` al guardar la preferencia).
+    // ejemplo, el que emite `auth.updateUser` al guardar la preferencia o al
+    // limpiar el registro pendiente).
     final haySesion = ref.watch(haySesionProvider.select(_estadoSesion));
     switch (haySesion) {
       case null:
+        _canjeEnCurso = null;
         return const Cargando();
       case false:
+        // Un canje en curso era de la sesión anterior: la siguiente no lo
+        // espera.
+        _canjeEnCurso = null;
         return const SinSesion();
       case true:
         unawaited(_cargar());
@@ -123,13 +141,21 @@ class ControlAcceso extends _$ControlAcceso {
     final repositorio = ref.read(membresiasRepositorioProvider);
     Acceso resultado;
     try {
+      // Antes de leer las membresías: el canje puede crear una.
+      final aviso = await _canjearPendienteUnaVez();
       final todas = await repositorio.listarMias();
-      resultado = accesoDesde(todas, repositorio.distribuidorPreferido());
+      resultado = accesoDesde(
+        todas,
+        repositorio.distribuidorPreferido(),
+        aviso: aviso,
+      );
     } catch (e, st) {
-      // La causa puede ser la red, un 401, un error de PostgREST o de parseo:
-      // se registra completa y a la persona se le da un mensaje neutro.
+      // La causa puede ser la red, un 401, un error de PostgREST o de parseo,
+      // también del canje del registro pendiente (que entonces se conserva
+      // para el reintento): se registra completa y a la persona se le da un
+      // mensaje neutro.
       developer.log(
-        'No se pudieron leer las membresías.',
+        'No se pudo cargar el acceso.',
         name: 'control_acceso',
         error: e,
         stackTrace: st,
@@ -142,5 +168,73 @@ class ControlAcceso extends _$ControlAcceso {
     // este resultado ya no vale.
     if (!ref.mounted || carga != _carga) return;
     state = resultado;
+  }
+
+  /// Canjea el registro pendiente, si hay, compartiendo el canje en curso
+  /// con las cargas que se solapen. Devuelve el aviso para la persona.
+  Future<String?> _canjearPendienteUnaVez() async {
+    final canje = _canjeEnCurso ??= _canjearPendiente();
+    try {
+      return await canje;
+    } finally {
+      if (identical(_canjeEnCurso, canje)) _canjeEnCurso = null;
+    }
+  }
+
+  /// Canjea el código del registro pendiente, completa los datos de la
+  /// bodega si vinculó y limpia el pendiente, vincule o no: un código que no
+  /// vincula no se reintenta. Si el canje lanza (sin respuesta, freno), el
+  /// error se propaga y el pendiente se conserva para el próximo intento.
+  Future<String?> _canjearPendiente() async {
+    final cuentas = ref.read(cuentasRepositorioProvider);
+    final pendiente = cuentas.pendienteActual();
+    if (pendiente == null) return null;
+
+    String? aviso;
+    if (_codigosCanjeados.add(pendiente.codigo)) {
+      final bool vinculada;
+      try {
+        vinculada = await ref
+            .read(invitacionesRepositorioProvider)
+            .canjear(pendiente.codigo);
+      } catch (_) {
+        // Sin respuesta: se podrá canjear en el próximo intento.
+        _codigosCanjeados.remove(pendiente.codigo);
+        rethrow;
+      }
+      if (!vinculada) {
+        aviso = avisoNoVinculado;
+      } else if (pendiente.tieneDatosNegocio) {
+        // El canje crea la membresía en el distribuidor de la invitación,
+        // que es el que guardó el pendiente.
+        try {
+          await cuentas.completarDatosNegocio(
+            pendiente.distribuidorId,
+            pendiente,
+          );
+        } catch (e, st) {
+          // No bloquea la entrada: la bodega ya quedó vinculada.
+          developer.log(
+            'No se pudieron completar los datos de la bodega.',
+            name: 'control_acceso',
+            error: e,
+            stackTrace: st,
+          );
+        }
+      }
+    }
+
+    try {
+      await cuentas.limpiarPendiente();
+    } catch (e, st) {
+      // `_codigosCanjeados` evita canjearlo otra vez en esta ejecución.
+      developer.log(
+        'No se pudo limpiar el registro pendiente.',
+        name: 'control_acceso',
+        error: e,
+        stackTrace: st,
+      );
+    }
+    return aviso;
   }
 }

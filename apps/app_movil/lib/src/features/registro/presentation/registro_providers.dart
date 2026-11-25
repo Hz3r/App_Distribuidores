@@ -4,8 +4,10 @@ import 'package:core/core.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../sesion/presentation/control_acceso.dart';
+import '../data/cuentas_repositorio_supabase.dart';
 import '../data/invitaciones_repositorio_supabase.dart';
 import '../domain/codigo_invitacion.dart';
+import '../domain/cuentas_repositorio.dart';
 import '../domain/invitacion_previa.dart';
 import '../domain/invitaciones_repositorio.dart';
 
@@ -18,6 +20,12 @@ part 'registro_providers.g.dart';
 @Riverpod(keepAlive: true)
 InvitacionesRepositorio invitacionesRepositorio(Ref ref) =>
     InvitacionesRepositorioSupabase(supabase);
+
+/// Repositorio de la cuenta (registro, ingreso y registro pendiente);
+/// las pruebas lo reemplazan con un doble.
+@Riverpod(keepAlive: true)
+CuentasRepositorio cuentasRepositorio(Ref ref) =>
+    CuentasRepositorioSupabase(supabase);
 
 /// Por qué no se completó el canje.
 enum FalloCanje {

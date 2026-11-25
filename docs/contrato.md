@@ -25,7 +25,7 @@ y este documento se corrige.
 | Marcas de tiempo | Toda tabla tiene `creado_en`. Las editables tienen `actualizado_en`, mantenido por el trigger `privado.tg_actualizado_en()`. |
 | Esquemas | `public`: tablas y funciones que la app llama (Data API). `privado`: funciones auxiliares, **no** expuesto; `authenticated` solo tiene `usage`, `anon` nada. |
 | Escritura | Lo que mueve stock, pedidos, pagos, membresías, invitaciones y la plataforma se escribe **solo con funciones** (`supabase.rpc(...)`). La app no hace `insert`/`update` sobre esas tablas. |
-| Permisos | Cada migración revoca todo a `anon` y `authenticated` y otorga solo lo de la matriz (sección 2). `anon` no tiene acceso a ninguna tabla ni función. |
+| Permisos | Cada migración revoca todo a `anon` y `authenticated` y otorga solo lo de la matriz (sección 2). `anon` no tiene acceso a ninguna tabla ni función, **salvo una excepción**: puede ejecutar `consultar_invitacion` (sección 3), para validar el código antes de tener cuenta. |
 | Distribuidor activo | La app guarda cuál distribuidor está seleccionado y lo manda como filtro o parámetro (`distribuidor_id`). La BD nunca confía en ese valor: siempre verifica la membresía. |
 | Cambios de esquema | Solo con una migración nueva en `supabase/migrations/`. Nunca se edita una migración ya aplicada. |
 
@@ -43,6 +43,7 @@ Migraciones, en orden (cada una pasa sus pruebas sin las siguientes):
 | 4 | `supabase/migrations/20261122130000_cobros.sql` | Pagos de pedidos |
 | 5 | `supabase/migrations/20261122140000_plataforma.sql` | Planes, suscripciones, alta de distribuidores |
 | 6 | `supabase/migrations/20261122150000_ajustes_post_revision.sql` | Ajustes tras la revisión: catálogo visible para cliente y repartidor, `crear_pedido` rechaza categorías inactivas, `execute` de `public.rls_auto_enable()` |
+| 7 | `supabase/migrations/20261125100000_registro_por_invitacion.sql` | Registro por invitación: `intentos_consulta`, `consultar_invitacion` (sin sesión), `completar_datos_negocio`. Aún no aplicada en DEV |
 
 ### Tipos (enums)
 
@@ -78,6 +79,7 @@ Todas tienen `creado_en` y, salvo `contadores_pedido` (su pk es `distribuidor_id
 | `membresias` ✎ | Vínculo persona–distribuidor | `perfil_id`, `distribuidor_id`, `rol`, `estado` (def. `activa`), `cliente_negocio_id?` |
 | `invitaciones` ✎ | Código de un solo uso | `distribuidor_id`, `codigo` (único en la plataforma), `rol`, `cliente_negocio_id?`, `creada_por?`, `vence_en`, `usada_por?`, `usada_en?`, `revocada_en?` |
 | `intentos_canje` | Freno a quien adivina códigos | `perfil_id`, `exitoso` |
+| `intentos_consulta` | Freno, por dirección de red, a quien consulta códigos sin sesión (migración 7). Sin `distribuidor_id`: el código consultado puede no existir | `direccion_red` (primer elemento de `x-forwarded-for`, máx. 64 caracteres, o `desconocida`), `exitoso` |
 | `dispositivos_push` ✎ | Token de notificaciones | `perfil_id`, `token` (único), `plataforma` (`android`, `ios` o `web`) |
 
 Reglas:
@@ -244,7 +246,7 @@ las funciones de la sección 3.
 | `perfiles` | lee el suyo y los de las personas con membresía en su distribuidor | igual que admin | igual que admin | lee el suyo y el del repartidor asignado a sus pedidos | lee todos |
 | (todos) `perfiles` | cada persona edita solo su `nombre` | | | | |
 | `membresias` | lee todas; estado, rol y bodega por funciones | lee todas | lee la suya | lee la suya | lee todas |
-| `clientes_negocio` | lee, crea y edita (con lista y crédito); sin `delete` | lee, crea y edita, sin lista ni crédito | lee las de sus pedidos asignados | lee la suya | lee todas |
+| `clientes_negocio` | lee, crea y edita (con lista y crédito); sin `delete` | lee, crea y edita, sin lista ni crédito | lee las de sus pedidos asignados | lee la suya; completa documento, dirección, referencia y teléfono con `completar_datos_negocio` | lee todas |
 | `invitaciones` | lee todas; crea y revoca por funciones | lee, crea y revoca las de rol `cliente` | no | no | lee todas; crea y revoca en cualquiera |
 | `categorias`, `productos`, `presentaciones` | lee todo; crea y edita por columnas (sin stock, sin `delete`) | lee todo | lee solo lo visible (sección 2, catálogo) | lee solo lo visible (sección 2, catálogo) | lee todo |
 | `precios_volumen` | lee; crea, edita y borra | lee | lee los de presentaciones visibles | lee los de presentaciones visibles | lee |
@@ -256,7 +258,7 @@ las funciones de la sección 3.
 | `suscripciones`, `pagos_suscripcion` | lee las suyas | no | no | no | lee todas; escribe por funciones |
 | `planes` | lee | lee | lee | lee | lee, crea y edita |
 | `dispositivos_push` | cada persona lee y borra solo los suyos; registra con `registrar_dispositivo` | | | | |
-| `intentos_canje`, `contadores_pedido` | sin acceso para nadie | | | | |
+| `intentos_canje`, `intentos_consulta`, `contadores_pedido` | sin acceso para nadie | | | | |
 | Storage `catalogo` | sube, reemplaza y borra en `<su distribuidor_id>/` | lectura pública por URL | | | |
 
 Grants por columna (lo que la API acepta en `insert` / `update`; lo demás falla con `42501`):
@@ -283,6 +285,7 @@ permite no da error: no cambia ninguna fila.
 
 Todas son `security definer`, verifican `auth.uid()` y la membresía en su cuerpo, y solo las
 ejecuta `authenticated` (`anon` recibe `permission denied`). Sin sesión, todas lanzan `42501`.
+**Única excepción:** `consultar_invitacion`, que también ejecuta `anon` y funciona sin sesión.
 Los parámetros con valor por defecto van al final: **la app los pasa por nombre**
 (`supabase.rpc('crear_pedido', params: {...})`).
 
@@ -297,7 +300,7 @@ Los parámetros con valor por defecto van al final: **la app los pasa por nombre
 | `P0002` | No existe, o quien llama no puede verlo (pedido, pago, presentación, suscripción, distribuidor) |
 | `P0003` | Distribuidor que no está en `prueba` ni `activo`, o bodega inactiva en un pedido que admin o vendedor crean a su nombre (un cliente con la bodega inactiva recibe `42501`: su membresía ya no cuenta) |
 | `P0004` | Crédito no habilitado, límite excedido o deuda vencida |
-| `P0005` | Demasiados intentos de canje (solo `canjear_invitacion`) |
+| `P0005` | Demasiados intentos: de canje en `canjear_invitacion` (por cuenta) o de consulta en `consultar_invitacion` (por dirección de red). Solo esas dos |
 | `P0006` | Operación no válida para el estado actual: transición de pedido inválida, pago sobre pedido cancelado, pago ya anulado, cancelar con pagos activos, revocar una invitación usada, dejar a un distribuidor sin admin activo, pagar una suscripción cancelada o que dejaría dos vigentes |
 
 > **Ojo con `P0004`:** coincide con el SQLSTATE de `assert_failure` de PL/pgSQL. Un bloque
@@ -329,6 +332,41 @@ Los mensajes están en español y pueden cambiar; la app decide por el código, 
 - Freno: con 5 intentos fallidos en 15 minutos, la cuenta queda frenada hasta que salga de la
   ventana. Los canjes de una misma cuenta se serializan.
 - Errores: solo `42501` (sin sesión) y `P0005` (frenada).
+
+**`consultar_invitacion(p_codigo text) returns jsonb`**
+- Quién: **cualquiera, también sin sesión** (`anon` y `authenticated`). Es la única función del
+  esquema que ejecuta `anon`. Normaliza el código (`upper(trim(...))`). No lo canjea.
+- Si el código es canjeable (mismas condiciones que `canjear_invitacion`) devuelve:
+
+  ```json
+  {
+    "distribuidor_id": "<uuid>",
+    "distribuidor_nombre": "<config_tema.nombre si no está vacío; si no, distribuidores.nombre>",
+    "rol": "cliente",
+    "negocio": {
+      "nombre_negocio": "...", "documento": null, "direccion": "...",
+      "referencia": null, "telefono": null
+    }
+  }
+  ```
+
+  `negocio` es `null` si la invitación no es de rol `cliente`.
+- **Si no sirve devuelve `null`, sin error**: inexistente, usado, revocado, vencido o de bodega
+  inactiva. Los cinco casos son indistinguibles. No mira si quien llama ya es miembro.
+- Freno por dirección de red: la dirección es el primer elemento de la cabecera
+  `x-forwarded-for` (cortado a 64 caracteres), o `desconocida` si no hay. Con 5 consultas fallidas
+  en 15 minutos desde esa dirección, las siguientes lanzan `P0005` (también con un código válido)
+  hasta que salgan de la ventana. Las consultas de una misma dirección se serializan.
+- Errores: solo `P0005` (frenada).
+
+**`completar_datos_negocio(p_distribuidor_id uuid, p_documento text default null, p_direccion text default null, p_referencia text default null, p_telefono text default null) returns void`**
+- Quién: cliente activo del distribuidor (persona con membresía `cliente` activa y bodega
+  activa). Actualiza **su** bodega en ese distribuidor.
+- Cada parámetro se limpia con `trim`; uno nulo o vacío no cambia su columna. `documento` solo se
+  escribe si estaba nulo o vacío: si ya tiene valor se ignora, sin error.
+- Nunca toca `nombre_negocio`, `lista_precios_id`, las columnas de crédito ni `activo`.
+- Errores: `42501` sin sesión o si no es cliente activo de ese distribuidor; `22023` tras limpiar,
+  `documento` o `telefono` de más de 20 caracteres, o `direccion` o `referencia` de más de 200.
 
 **`cambiar_estado_membresia(p_membresia_id uuid, p_estado estado_membresia) returns void`**
 - Quién: admin del distribuidor de la membresía (cualquier rol, también clientes).
@@ -711,7 +749,8 @@ Termina con `TODO OK`. En CI corre en el job `sql` de `.github/workflows/ci.yml`
 | `04_concurrencia_pagos_test.sh` | Dos pagos simultáneos por el saldo completo; pago y cancelación simultáneos, en los dos órdenes |
 | `05_plataforma_test.sql` | Planes, suscripciones, alta y estado de distribuidores |
 | `06_ajustes_test.sql` | Catálogo visible para cliente y repartidor; `crear_pedido` con la categoría inactiva; `execute` de `public.rls_auto_enable()` si existe |
-| `06_seguridad_test.sql` | Barrido: RLS, grants, `search_path`, políticas, montos `bigint` |
+| `06_seguridad_test.sql` | Barrido: RLS, grants, `search_path`, políticas, montos `bigint`; `anon` ejecuta solo `consultar_invitacion` |
+| `07_registro_test.sql` | `consultar_invitacion` (datos, casos nulos, freno por dirección, cabecera ausente), `completar_datos_negocio` |
 
 ---
 

@@ -16,6 +16,11 @@ class PanelWeb extends ConsumerWidget {
       title: 'Panel del distribuidor',
       debugShowCheckedModeBanner: false,
       theme: temaPanel(),
+      // Textos propios de los componentes (calendario, menús, tooltips) en
+      // español.
+      locale: const Locale('es'),
+      supportedLocales: const [Locale('es')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       routerConfig: router,
     );
   }

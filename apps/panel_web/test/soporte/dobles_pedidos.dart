@@ -138,6 +138,23 @@ class PedidosDoble implements PedidosRepositorio {
     ];
   }
 
+  /// Rango con el que se pidió el último reporte.
+  (DateTime, DateTime)? ultimoRango;
+
+  @override
+  Future<List<Pedido>> listarPedidosEntre(
+    String distribuidorId,
+    DateTime desde,
+    DateTime hasta,
+  ) async {
+    ultimoRango = (desde, hasta);
+    if (fallarEn == 'listarPedidosEntre') throw ErrorPedidos(motivo);
+    return [
+      for (final p in pedidos.reversed)
+        if (!p.creadoEn.isBefore(desde) && p.creadoEn.isBefore(hasta)) p,
+    ];
+  }
+
   @override
   Future<List<Pago>> listarPagos(String pedidoId) async =>
       pagos[pedidoId] ?? const [];

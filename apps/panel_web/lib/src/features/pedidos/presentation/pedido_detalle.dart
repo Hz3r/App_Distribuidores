@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:core/core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -8,6 +10,7 @@ import '../../../shared/textos.dart';
 import '../../../shared/widgets/estados.dart';
 import '../../../shared/widgets/etiqueta.dart';
 import '../../clientes/presentation/clientes_providers.dart';
+import '../../reportes/presentation/reportes_providers.dart';
 import '../../sesion/presentation/control_acceso.dart';
 import '../domain/flujo_pedido.dart';
 import 'pedido_dialogos.dart';
@@ -47,6 +50,7 @@ class PedidoDetalle extends ConsumerStatefulWidget {
 
 class _PedidoDetalleState extends ConsumerState<PedidoDetalle> {
   bool _ocupado = false;
+  bool _descargando = false;
 
   Future<void> _avanzar(Pedido pedido, EstadoPedido estado) async {
     if (_ocupado) return;
@@ -83,6 +87,42 @@ class _PedidoDetalleState extends ConsumerState<PedidoDetalle> {
     final registrado = await RegistrarPagoDialogo.mostrar(context, pedido);
     if (registrado == true) {
       avisos?.showSnackBar(const SnackBar(content: Text('Pago registrado.')));
+    }
+  }
+
+  /// Descarga la guía del pedido en PDF.
+  Future<void> _descargarGuia(Pedido pedido, ClienteNegocio? cliente) async {
+    final distribuidor = ref.read(membresiaActivaProvider)?.distribuidor;
+    if (_descargando || distribuidor == null) return;
+    final avisos = ScaffoldMessenger.maybeOf(context);
+    setState(() => _descargando = true);
+    try {
+      await ref
+          .read(exportadorProvider)
+          .descargarGuia(
+            pedido: pedido,
+            distribuidor: distribuidor,
+            cliente: cliente,
+          );
+      avisos?.showSnackBar(
+        SnackBar(
+          content: Text('Se descargó la guía del pedido #${pedido.numero}.'),
+        ),
+      );
+    } catch (e, st) {
+      developer.log(
+        'No se pudo generar la guía.',
+        name: 'pedidos',
+        error: e,
+        stackTrace: st,
+      );
+      avisos?.showSnackBar(
+        const SnackBar(
+          content: Text('No pudimos generar la guía. Inténtalo de nuevo.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _descargando = false);
     }
   }
 
@@ -307,6 +347,19 @@ class _PedidoDetalleState extends ConsumerState<PedidoDetalle> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _descargando
+                      ? null
+                      : () => _descargarGuia(pedido, cliente),
+                  icon: _descargando
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                  label: const Text('Descargar guía en PDF'),
                 ),
                 const _TituloSeccion('Cobro'),
                 _Cobro(

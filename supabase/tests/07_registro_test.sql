@@ -4,7 +4,8 @@
 -- Ids del módulo 1: D1 0d01 "Licores Demo", D2 0d02; bodegas 0b01 (C1),
 -- 0b02 (C2) en D1, 0b03 (C1) en D2; A1 00a1, V1 00b1, R1 00e1, C1 00c1,
 -- C2 00c2, A2 00a2, N1 0091 (sin membresías).
--- La dirección de red se simula con request.headers, como la pone PostgREST.
+-- La dirección de red se simula con request.headers, como la pone PostgREST:
+-- cf-connecting-ip si viene; si no, el ÚLTIMO elemento de x-forwarded-for.
 -- Los casos corren en orden dentro de una transacción.
 begin;
 \ir soporte/datos_m3.sql
@@ -59,8 +60,9 @@ where id = :'inv_vencida';
 update public.clientes_negocio set activo = false where id = :'b09';
 
 -- 8.1: consulta anónima de un código válido, en minúsculas y con espacios.
+-- Sin cf-connecting-ip, la dirección es el último elemento de x-forwarded-for.
 select pruebas.como_anon();
-select set_config('request.headers', '{"x-forwarded-for":"10.0.0.1, 10.9.9.9"}', true);
+select set_config('request.headers', '{"x-forwarded-for":"10.9.9.9, 10.0.0.1"}', true);
 select public.consultar_invitacion('  ' || lower(:'cod_b02') || ' ') as r81 \gset
 select pruebas.afirma(
   (:'r81'::jsonb) ->> 'distribuidor_id' = :'d1'
@@ -78,7 +80,7 @@ select pruebas.afirma(
   (select count(*) from public.intentos_consulta) = 1
   and (select count(*) from public.intentos_consulta
        where direccion_red = '10.0.0.1' and exitoso) = 1,
-  '8.1 queda un intento exitoso con direccion_red 10.0.0.1');
+  '8.1 queda un intento exitoso con direccion_red 10.0.0.1 (el último elemento)');
 
 -- 8.2: código inexistente.
 select pruebas.como_anon();
@@ -110,7 +112,7 @@ select pruebas.afirma(
 
 -- 8.4: con 5 fallos en 15 minutos, la dirección queda frenada.
 select pruebas.como_anon();
-select set_config('request.headers', '{"x-forwarded-for":"10.0.0.2"}', true);
+select set_config('request.headers', '{"x-forwarded-for":"10.9.9.9, 10.0.0.2"}', true);
 do $$
 declare
   v_todos_null boolean := true;
@@ -125,8 +127,9 @@ select pruebas.espera_error(
   format('select public.consultar_invitacion(%L)', :'cod_b02'), 'P0005',
   '8.4 la sexta consulta, aunque el código sea válido, lanza P0005');
 
--- 8.5: el freno es por dirección.
-select set_config('request.headers', '{"x-forwarded-for":"10.0.0.3"}', true);
+-- 8.5: el freno es por dirección, y la dirección es el último elemento: con
+-- el mismo primer elemento que en 8.4 pero otro último (10.0.0.3), no frena.
+select set_config('request.headers', '{"x-forwarded-for":"10.9.9.9, 10.0.0.3"}', true);
 select pruebas.afirma(
   public.consultar_invitacion(:'cod_b02') ->> 'distribuidor_id' = :'d1',
   '8.5 desde 10.0.0.3 el código válido devuelve datos');
@@ -146,25 +149,42 @@ select pruebas.afirma(
   public.consultar_invitacion(:'cod_b02') ->> 'distribuidor_id' = :'d1',
   '8.6 con request.headers que no es JSON devuelve datos');
 
+-- cf-connecting-ip en blanco y x-forwarded-for con el último elemento en
+-- blanco: no hay dirección.
+select set_config('request.headers',
+  '{"cf-connecting-ip":"   ","x-forwarded-for":"10.0.0.5, "}', true);
+select pruebas.afirma(
+  public.consultar_invitacion(:'cod_b02') ->> 'distribuidor_id' = :'d1',
+  '8.6 con cf-connecting-ip y el último elemento en blanco devuelve datos');
+
 select pruebas.como_servicio();
 select pruebas.afirma(
   (select count(*) from public.intentos_consulta
-   where direccion_red = 'desconocida' and exitoso) = 3,
+   where direccion_red = 'desconocida' and exitoso) = 4
+  and (select count(*) from public.intentos_consulta
+       where direccion_red = '10.0.0.5') = 0,
   '8.6 los intentos quedan con direccion_red desconocida');
 
 -- La cabecera es texto del cliente: se guarda tal cual (sin interpretarla)
--- y cortada a 64 caracteres.
+-- y cortada a 64 caracteres, venga de x-forwarded-for o de cf-connecting-ip.
 select pruebas.como_anon();
 select set_config('request.headers',
-  json_build_object('x-forwarded-for', repeat('9', 100) || ''');--, 10.0.0.1')::text, true);
+  json_build_object('x-forwarded-for', '10.0.0.1, ' || repeat('9', 100) || ''');--')::text, true);
 select pruebas.afirma(
   public.consultar_invitacion(:'cod_b02') ->> 'distribuidor_id' = :'d1',
   '8.6 con una cabecera larga y con comillas devuelve datos');
+select set_config('request.headers',
+  json_build_object('cf-connecting-ip', repeat('8', 100) || ''');--')::text, true);
+select pruebas.afirma(
+  public.consultar_invitacion(:'cod_b02') ->> 'distribuidor_id' = :'d1',
+  '8.6 con un cf-connecting-ip largo y con comillas devuelve datos');
 
 select pruebas.como_servicio();
 select pruebas.afirma(
   (select count(*) from public.intentos_consulta
-   where direccion_red = repeat('9', 64) and exitoso) = 1,
+   where direccion_red = repeat('9', 64) and exitoso) = 1
+  and (select count(*) from public.intentos_consulta
+       where direccion_red = repeat('8', 64) and exitoso) = 1,
   '8.6 la dirección guardada se corta a 64 caracteres');
 
 -- 8.7: invitación de personal: rol vendedor y sin bodega.
@@ -284,5 +304,90 @@ select pruebas.como(:'c2');
 select pruebas.espera_error(
   format('select public.completar_datos_negocio(%L, p_direccion => %L)', :'d1', 'x'),
   '42501', '8.17 con la bodega inactiva, C2 recibe 42501');
+
+-- 8.18: cf-connecting-ip manda sobre x-forwarded-for.
+select pruebas.como_servicio();
+select count(*) as n_10007 from public.intentos_consulta
+where direccion_red = '10.0.0.7' \gset
+
+select pruebas.como_anon();
+select set_config('request.headers',
+  '{"cf-connecting-ip":"10.0.0.7","x-forwarded-for":"1.1.1.1, 2.2.2.2"}', true);
+select pruebas.afirma(public.consultar_invitacion(:'cod_vendedor') ->> 'rol' = 'vendedor',
+  '8.18 con cf-connecting-ip el código válido devuelve datos');
+
+select pruebas.como_servicio();
+select pruebas.afirma(
+  (select count(*) from public.intentos_consulta where direccion_red = '10.0.0.7')
+    = :n_10007 + 1
+  and (select count(*) from public.intentos_consulta
+       where direccion_red in ('1.1.1.1', '2.2.2.2')) = 0,
+  '8.18 el intento queda con direccion_red 10.0.0.7 (cf-connecting-ip)');
+
+-- 8.19: el ataque. Un x-forwarded-for falsificado y distinto en cada
+-- consulta no evita el freno: ni con cf-connecting-ip fijo, ni sin él con el
+-- último elemento (el que agrega el proxy) fijo.
+select pruebas.como_anon();
+do $$
+declare
+  v_todos_null boolean := true;
+  i integer;
+begin
+  for i in 1..5 loop
+    perform set_config('request.headers', json_build_object(
+      'cf-connecting-ip', '10.0.0.8',
+      'x-forwarded-for', format('172.16.0.%s', i))::text, true);
+    v_todos_null := v_todos_null and public.consultar_invitacion('XXXXXXXX') is null;
+  end loop;
+  perform pruebas.afirma(v_todos_null,
+    '8.19 cinco consultas fallidas desde cf-connecting-ip 10.0.0.8 con x-forwarded-for falsos');
+end $$;
+select set_config('request.headers',
+  '{"cf-connecting-ip":"10.0.0.8","x-forwarded-for":"172.16.0.99"}', true);
+select pruebas.espera_error(
+  format('select public.consultar_invitacion(%L)', :'cod_vendedor'), 'P0005',
+  '8.19 la sexta desde cf-connecting-ip 10.0.0.8 lanza P0005');
+
+do $$
+declare
+  v_todos_null boolean := true;
+  i integer;
+begin
+  for i in 1..5 loop
+    perform set_config('request.headers', json_build_object(
+      'x-forwarded-for', format('172.17.0.%s, 10.0.0.9', i))::text, true);
+    v_todos_null := v_todos_null and public.consultar_invitacion('XXXXXXXX') is null;
+  end loop;
+  perform pruebas.afirma(v_todos_null,
+    '8.19 cinco consultas fallidas con el último elemento 10.0.0.9 y el primero falso');
+end $$;
+select set_config('request.headers', '{"x-forwarded-for":"172.17.0.99, 10.0.0.9"}', true);
+select pruebas.espera_error(
+  format('select public.consultar_invitacion(%L)', :'cod_vendedor'), 'P0005',
+  '8.19 la sexta con el último elemento 10.0.0.9 lanza P0005');
+
+-- 8.20: cada consulta borra los intentos de su dirección con más de 1 día;
+-- los recientes y los de otra dirección se quedan.
+select pruebas.como_servicio();
+insert into public.intentos_consulta (direccion_red, exitoso, creado_en) values
+  ('10.0.0.20', false, now() - interval '2 days'),
+  ('10.0.0.20', false, now() - interval '1 hour'),
+  ('10.0.0.21', false, now() - interval '2 days');
+
+select pruebas.como_anon();
+select set_config('request.headers', '{"cf-connecting-ip":"10.0.0.20"}', true);
+select pruebas.afirma(public.consultar_invitacion('XXXXXXXX') is null,
+  '8.20 la consulta desde 10.0.0.20 devuelve null');
+
+select pruebas.como_servicio();
+select pruebas.afirma(
+  (select count(*) from public.intentos_consulta
+   where direccion_red = '10.0.0.20' and creado_en < now() - interval '1 day') = 0
+  and (select count(*) from public.intentos_consulta
+       where direccion_red = '10.0.0.20') = 2
+  and (select count(*) from public.intentos_consulta
+       where direccion_red = '10.0.0.21') = 1,
+  '8.20 se borra el intento de 2 días de 10.0.0.20; el de 1 hora y el de 10.0.0.21 quedan');
+select set_config('request.headers', '', true);
 
 rollback;

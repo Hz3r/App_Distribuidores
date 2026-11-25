@@ -79,7 +79,7 @@ Todas tienen `creado_en` y, salvo `contadores_pedido` (su pk es `distribuidor_id
 | `membresias` ✎ | Vínculo persona–distribuidor | `perfil_id`, `distribuidor_id`, `rol`, `estado` (def. `activa`), `cliente_negocio_id?` |
 | `invitaciones` ✎ | Código de un solo uso | `distribuidor_id`, `codigo` (único en la plataforma), `rol`, `cliente_negocio_id?`, `creada_por?`, `vence_en`, `usada_por?`, `usada_en?`, `revocada_en?` |
 | `intentos_canje` | Freno a quien adivina códigos | `perfil_id`, `exitoso` |
-| `intentos_consulta` | Freno, por dirección de red, a quien consulta códigos sin sesión (migración 7). Sin `distribuidor_id`: el código consultado puede no existir | `direccion_red` (primer elemento de `x-forwarded-for`, máx. 64 caracteres, o `desconocida`), `exitoso` |
+| `intentos_consulta` | Freno, por dirección de red, a quien consulta códigos sin sesión (migración 7). Sin `distribuidor_id`: el código consultado puede no existir | `direccion_red` (ver `consultar_invitacion`, máx. 64 caracteres), `exitoso`. Cada consulta borra los de su dirección con más de 1 día |
 | `dispositivos_push` ✎ | Token de notificaciones | `perfil_id`, `token` (único), `plataforma` (`android`, `ios` o `web`) |
 
 Reglas:
@@ -353,10 +353,17 @@ Los mensajes están en español y pueden cambiar; la app decide por el código, 
   `negocio` es `null` si la invitación no es de rol `cliente`.
 - **Si no sirve devuelve `null`, sin error**: inexistente, usado, revocado, vencido o de bodega
   inactiva. Los cinco casos son indistinguibles. No mira si quien llama ya es miembro.
-- Freno por dirección de red: la dirección es el primer elemento de la cabecera
-  `x-forwarded-for` (cortado a 64 caracteres), o `desconocida` si no hay. Con 5 consultas fallidas
+- Freno por dirección de red. La dirección sale de las cabeceras de la petición, en este orden:
+  1. `cf-connecting-ip`, si no está vacía tras `trim` (la fija el borde de Cloudflare, delante de
+     Supabase, y sobreescribe la que mande el cliente);
+  2. si no, el **último** elemento de `x-forwarded-for`, con `trim` (el que agrega el proxy de
+     confianza; el primero lo elige el cliente y no se usa);
+  3. si no, `desconocida` (también si las cabeceras faltan o no son JSON).
+
+  Se trata como texto no confiable y se guarda cortada a 64 caracteres. Con 5 consultas fallidas
   en 15 minutos desde esa dirección, las siguientes lanzan `P0005` (también con un código válido)
-  hasta que salgan de la ventana. Las consultas de una misma dirección se serializan.
+  hasta que salgan de la ventana. Las consultas de una misma dirección se serializan, y cada una
+  borra los intentos de su dirección con más de 1 día.
 - Errores: solo `P0005` (frenada).
 
 **`completar_datos_negocio(p_distribuidor_id uuid, p_documento text default null, p_direccion text default null, p_referencia text default null, p_telefono text default null) returns void`**
@@ -750,7 +757,7 @@ Termina con `TODO OK`. En CI corre en el job `sql` de `.github/workflows/ci.yml`
 | `05_plataforma_test.sql` | Planes, suscripciones, alta y estado de distribuidores |
 | `06_ajustes_test.sql` | Catálogo visible para cliente y repartidor; `crear_pedido` con la categoría inactiva; `execute` de `public.rls_auto_enable()` si existe |
 | `06_seguridad_test.sql` | Barrido: RLS, grants, `search_path`, políticas, montos `bigint`; `anon` ejecuta solo `consultar_invitacion` |
-| `07_registro_test.sql` | `consultar_invitacion` (datos, casos nulos, freno por dirección, cabecera ausente), `completar_datos_negocio` |
+| `07_registro_test.sql` | `consultar_invitacion` (datos, casos nulos, freno por dirección, orden de cabeceras y `x-forwarded-for` falsificado, cabecera ausente, limpieza de intentos viejos), `completar_datos_negocio` |
 
 ---
 

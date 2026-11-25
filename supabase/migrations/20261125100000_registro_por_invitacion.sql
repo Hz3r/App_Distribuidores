@@ -42,11 +42,21 @@ revoke all on public.intentos_consulta from anon, authenticated;
 -- P0005 con 5 o más consultas fallidas desde la misma dirección en los
 -- últimos 15 minutos.
 --
--- Dirección de red: primer elemento de x-forwarded-for de las cabeceras que
--- pone PostgREST en request.headers; 'desconocida' si no hay (fuera de
--- PostgREST el ajuste puede ser nulo o vacío). La cabecera viene del
--- cliente: se trata como texto no confiable, nunca se interpola en SQL y se
--- guarda cortada a 64 caracteres (una IPv6 completa ocupa 45).
+-- Dirección de red, de las cabeceras que pone PostgREST en request.headers,
+-- en este orden:
+--   a. cf-connecting-ip, si no está vacía tras trim: el borde de Cloudflare,
+--      delante de Supabase, la fija y sobreescribe la que mande el cliente;
+--   b. si no, el ÚLTIMO elemento de x-forwarded-for, con trim: el que agregó
+--      el proxy de confianza. El primero lo elige el cliente (el borde agrega
+--      la dirección real al final en vez de reemplazar la cabecera), así que
+--      usarlo permitiría saltarse el freno o frenar a otro;
+--   c. si no, 'desconocida' (fuera de PostgREST el ajuste puede ser nulo o
+--      vacío, o no ser JSON).
+-- El valor es texto no confiable: nunca se interpola en SQL y se guarda
+-- cortado a 64 caracteres (una IPv6 completa ocupa 45).
+--
+-- Cada consulta borra los intentos de su dirección con más de 1 día, para
+-- que la tabla, que escribe un anónimo, no crezca sin límite.
 -- ---------------------------------------------------------------------------
 create function public.consultar_invitacion(p_codigo text) returns jsonb
 language plpgsql
@@ -55,25 +65,35 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_cabeceras text := current_setting('request.headers', true);
+  v_cabeceras_texto text := current_setting('request.headers', true);
+  v_cabeceras jsonb;
   v_direccion text;
   v_inv public.invitaciones;
   v_resultado jsonb;
 begin
   begin
-    v_direccion := left(trim(split_part(
-      nullif(v_cabeceras, '')::jsonb ->> 'x-forwarded-for', ',', 1)), 64);
+    v_cabeceras := nullif(v_cabeceras_texto, '')::jsonb;
   exception when invalid_text_representation then
-    -- request.headers que no es JSON válido: se trata como sin cabecera.
-    v_direccion := null;
+    -- request.headers que no es JSON válido: se trata como sin cabeceras.
+    v_cabeceras := null;
   end;
-  v_direccion := coalesce(nullif(v_direccion, ''), 'desconocida');
+  -- split_part con -1 da el último elemento (también si hay uno solo).
+  v_direccion := left(coalesce(
+    nullif(trim(v_cabeceras ->> 'cf-connecting-ip'), ''),
+    nullif(trim(split_part(v_cabeceras ->> 'x-forwarded-for', ',', -1)), ''),
+    'desconocida'), 64);
 
   -- Serializa las consultas de una misma dirección: sin esto, varias
   -- llamadas en paralelo leerían el conteo antes de que ninguna registre su
   -- intento y todas pasarían el freno. Clave (2, hash de la dirección): el 2
   -- separa este freno del de canjear_invitacion (1).
   perform pg_advisory_xact_lock(2, hashtext(v_direccion));
+
+  -- Limpieza: los intentos de esta dirección con más de 1 día ya no cuentan
+  -- para el freno (ventana de 15 minutos).
+  delete from public.intentos_consulta i
+  where i.direccion_red = v_direccion
+    and i.creado_en < now() - interval '1 day';
 
   if (select count(*) from public.intentos_consulta i
       where i.direccion_red = v_direccion

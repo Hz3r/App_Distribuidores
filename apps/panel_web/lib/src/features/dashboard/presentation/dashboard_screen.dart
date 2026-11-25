@@ -10,6 +10,7 @@ import '../../../shared/textos.dart';
 import '../../../shared/widgets/estados.dart';
 import '../../../shared/widgets/etiqueta.dart';
 import '../../../shared/widgets/pagina_panel.dart';
+import '../../../shared/widgets/tarjeta_indicador.dart';
 import '../../clientes/presentation/clientes_providers.dart';
 import '../../disponibilidad/domain/disponibilidad.dart';
 import '../../pedidos/presentation/pedido_detalle.dart';
@@ -94,13 +95,13 @@ class _Contenido extends ConsumerWidget {
     );
 
     final indicadores = [
-      _Indicador(
+      TarjetaIndicador(
         etiqueta: 'Ventas de ${nombreMes(ahora.month)}',
         valor: resumen.ventasMesCentimos.formatoSoles,
         icono: Icons.trending_up_rounded,
         detalle: _Variacion(variacion: variacion, mesAnterior: mesAnterior),
       ),
-      _Indicador(
+      TarjetaIndicador(
         etiqueta: 'Pedidos por confirmar',
         valor: '${resumen.porConfirmar}',
         icono: Icons.receipt_long_outlined,
@@ -114,7 +115,7 @@ class _Contenido extends ConsumerWidget {
         ),
         alTocar: () => ir(AppRutas.pedidos),
       ),
-      _Indicador(
+      TarjetaIndicador(
         etiqueta: 'Clientes que compraron',
         valor: '${resumen.clientesQueCompraron} de $clientesActivos',
         icono: Icons.storefront_outlined,
@@ -125,7 +126,7 @@ class _Contenido extends ConsumerWidget {
         ),
         alTocar: () => ir(AppRutas.clientes),
       ),
-      _Indicador(
+      TarjetaIndicador(
         etiqueta: 'Productos agotados',
         valor: '${agotados.length}',
         icono: Icons.inventory_2_outlined,
@@ -276,95 +277,6 @@ class _Contenido extends ConsumerWidget {
           ),
         );
       },
-    );
-  }
-}
-
-/// Tarjeta con un número grande. Si se puede tocar, lleva a la sección
-/// donde se atiende ese número.
-class _Indicador extends StatelessWidget {
-  const _Indicador({
-    required this.etiqueta,
-    required this.valor,
-    required this.icono,
-    required this.detalle,
-    this.tono = TonoEtiqueta.info,
-    this.alTocar,
-  });
-
-  final String etiqueta;
-  final String valor;
-  final IconData icono;
-  final Widget detalle;
-  final TonoEtiqueta tono;
-  final VoidCallback? alTocar;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: ColoresPanel.blanco,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: ColoresPanel.neutro200),
-      ),
-      child: InkWell(
-        onTap: alTocar,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: tono.fondo,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.all(8),
-                    child: Icon(icono, size: 20, color: tono.texto),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      etiqueta,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: ColoresPanel.neutro500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  valor,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    height: 30 / 24,
-                    fontWeight: FontWeight.w700,
-                    color: ColoresPanel.neutro900,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              DefaultTextStyle.merge(
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: ColoresPanel.neutro500,
-                ),
-                child: detalle,
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

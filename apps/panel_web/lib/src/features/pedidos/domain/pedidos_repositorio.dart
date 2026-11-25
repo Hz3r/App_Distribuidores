@@ -89,6 +89,15 @@ abstract interface class PedidosRepositorio {
     DateTime desde,
   );
 
+  /// Pedidos creados en `[desde, hasta)` **con sus líneas**, del más antiguo
+  /// al más nuevo (para reportes y exportaciones). Los trae por páginas, así
+  /// que no se corta en el tope de filas de la API; tope total: 10 000.
+  Future<List<Pedido>> listarPedidosEntre(
+    String distribuidorId,
+    DateTime desde,
+    DateTime hasta,
+  );
+
   /// Pagos de un pedido, anulados incluidos, del más antiguo al más nuevo.
   Future<List<Pago>> listarPagos(String pedidoId);
 

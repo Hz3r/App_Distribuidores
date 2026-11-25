@@ -7,6 +7,7 @@ import 'package:panel_web/src/features/pedidos/presentation/pedidos_screen.dart'
 import '../soporte/dobles.dart';
 import '../soporte/dobles_clientes.dart';
 import '../soporte/dobles_pedidos.dart';
+import '../soporte/dobles_reportes.dart';
 import '../soporte/montar.dart';
 
 ClientesDoble clientesDemo() => ClientesDoble(
@@ -70,6 +71,7 @@ PedidosDoble pedidosDemo() => PedidosDoble(
 Future<PedidosDoble> montar(
   WidgetTester tester, {
   PedidosDoble? pedidos,
+  ExportadorDoble? exportador,
   RolMembresia rol = RolMembresia.admin,
   Size tamano = const Size(1440, 900),
 }) async {
@@ -78,6 +80,7 @@ Future<PedidosDoble> montar(
     tester,
     const PedidosScreen(),
     pedidos: doble,
+    exportador: exportador,
     clientes: clientesDemo(),
     catalogo: catalogoDemo(),
     rol: rol,
@@ -395,6 +398,40 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Nuevo pedido'), findsWidgets);
+  });
+
+  testWidgets('descargar la guía en PDF usa el pedido, su cliente y el '
+      'distribuidor, y avisa', (tester) async {
+    final exportador = ExportadorDoble();
+    await montar(tester, exportador: exportador);
+    await abrir(tester, '#1043');
+
+    final boton = find.text('Descargar guía en PDF');
+    await tester.ensureVisible(boton);
+    await tester.tap(boton);
+    await tester.pumpAndSettle();
+
+    expect(exportador.llamadas, [
+      'guia #1043 de Distribuidor d1 para Bodega El Roble',
+    ]);
+    expect(find.text('Se descargó la guía del pedido #1043.'), findsOneWidget);
+  });
+
+  testWidgets('si la guía no se puede generar, lo dice', (tester) async {
+    final exportador = ExportadorDoble()..fallar = true;
+    await montar(tester, exportador: exportador);
+    await abrir(tester, '#1043');
+
+    final boton = find.text('Descargar guía en PDF');
+    await tester.ensureVisible(boton);
+    await tester.tap(boton);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('No pudimos generar la guía. Inténtalo de nuevo.'),
+      findsOneWidget,
+    );
+    expect(exportador.llamadas, isEmpty);
   });
 
   testWidgets('sin pedidos invita a registrar uno', (tester) async {

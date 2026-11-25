@@ -47,6 +47,38 @@ class PedidosRepositorioSupabase implements PedidosRepositorio {
     });
   }
 
+  /// Filas por página; igual al tope de filas por consulta de la API.
+  static const _pagina = 1000;
+  static const _maximoPaginas = 10;
+
+  @override
+  Future<List<Pedido>> listarPedidosEntre(
+    String distribuidorId,
+    DateTime desde,
+    DateTime hasta,
+  ) {
+    return _intentar(() async {
+      final pedidos = <Pedido>[];
+      for (var pagina = 0; pagina < _maximoPaginas; pagina++) {
+        final inicio = pagina * _pagina;
+        final filas = await _cliente
+            .from('pedidos')
+            .select('*, items:pedido_items(*)')
+            .eq('distribuidor_id', distribuidorId)
+            .gte('creado_en', desde.toUtc().toIso8601String())
+            .lt('creado_en', hasta.toUtc().toIso8601String())
+            // El id desempata: sin él, dos pedidos del mismo instante podrían
+            // repetirse o perderse entre páginas.
+            .order('creado_en', ascending: true)
+            .order('id', ascending: true)
+            .range(inicio, inicio + _pagina - 1);
+        pedidos.addAll(filas.map((f) => _ordenado(Pedido.fromJson(f))));
+        if (filas.length < _pagina) break;
+      }
+      return pedidos;
+    });
+  }
+
   @override
   Future<List<Pago>> listarPagos(String pedidoId) {
     return _intentar(() async {

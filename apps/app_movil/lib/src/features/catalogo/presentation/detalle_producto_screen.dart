@@ -275,9 +275,11 @@ class _Encabezado extends StatelessWidget {
           BotonCircular(
             icono: Icons.shopping_cart_outlined,
             tooltip: 'Ver carrito',
-            // Encima del detalle: con atrás se vuelve a él.
+            // Encima del detalle y sin rehacer la pila (`push`): atrás
+            // vuelve al detalle, y de ahí a donde se abrió (inicio o
+            // catálogo).
             onPressed: () =>
-                context.go(AppRutas.carritoDesdeDetalle(productoId)),
+                context.push(AppRutas.carritoDesdeDetalle(productoId)),
             child: const IconoCarrito(),
           ),
         ],

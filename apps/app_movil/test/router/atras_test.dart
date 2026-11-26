@@ -137,6 +137,32 @@ void main() {
     expect(salio(), isFalse);
   });
 
+  testWidgets('inicio → detalle → icono del carrito → atrás, atrás vuelve a '
+      'Inicio', (tester) async {
+    escucharPlataforma(tester);
+    final (:router, container: _) = await montarCliente(
+      tester,
+      repositorio: CatalogoRepositorioFijo(catalogoDePrueba()),
+      ubicacion: AppRutas.inicio,
+    );
+    final tarjeta = find.text('Cerveza Negra 330 ml');
+    await tester.ensureVisible(tarjeta);
+    await tester.pumpAndSettle();
+    await tester.tap(tarjeta);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Ver carrito'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CarritoScreen), findsOneWidget);
+
+    await atras(tester);
+    expect(router.state.matchedLocation, AppRutas.detalleProducto('p2'));
+
+    await atras(tester);
+    expect(router.state.matchedLocation, AppRutas.inicio);
+    expect(find.byType(InicioScreen), findsOneWidget);
+    expect(salio(), isFalse);
+  });
+
   testWidgets('un repartidor en perfil sale con atrás', (tester) async {
     escucharPlataforma(tester);
     final repartidor = membresia('d2', rol: RolMembresia.repartidor);

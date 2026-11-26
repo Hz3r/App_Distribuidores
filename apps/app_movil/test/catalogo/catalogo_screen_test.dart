@@ -272,7 +272,7 @@ void main() {
     // El "+" apagado también lo dice a quien usa un lector de pantalla.
     expect(
       tester.getSemantics(masDe('Pisco Quebranta')),
-      containsSemantics(
+      isSemantics(
         tooltip:
             'Ya tienes en el carrito todo lo disponible de Pisco Quebranta',
         isEnabled: false,

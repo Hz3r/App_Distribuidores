@@ -142,6 +142,11 @@ class TarjetaProducto extends ConsumerWidget {
   }
 }
 
+/// Alto de una fila de [TarjetaProducto] (en la cuadrícula del catálogo y en
+/// la fila del inicio): crece con el tamaño de letra del sistema ([escala])
+/// para que el texto no se corte.
+double altoFilaTarjetaProducto(TextScaler escala) => 164 + escala.scale(140);
+
 /// Punto y texto de disponibilidad: "340 disponibles" en verde, "Agotado"
 /// en rojo, o "Ya en tu carrito" en azul si [todoEnCarrito] (hay stock pero
 /// el carrito ya tiene todo lo disponible).

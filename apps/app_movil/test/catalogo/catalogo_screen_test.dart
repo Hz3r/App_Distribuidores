@@ -362,6 +362,30 @@ void main() {
     expect(find.text('4 productos'), findsOneWidget);
   });
 
+  testWidgets('las filas del catálogo y del inicio usan el mismo alto, que '
+      'crece con la letra', (tester) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    final (:router, container: _) = await montarCliente(
+      tester,
+      repositorio: repositorio,
+    );
+    final esperado = altoFilaTarjetaProducto(const TextScaler.linear(1.3));
+    expect(
+      esperado,
+      greaterThan(altoFilaTarjetaProducto(TextScaler.noScaling)),
+    );
+
+    final delegado =
+        tester.widget<GridView>(find.byType(GridView)).gridDelegate
+            as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(delegado.mainAxisExtent, esperado);
+
+    router.go(AppRutas.inicio);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byType(TarjetaProducto).first).height, esperado);
+  });
+
   testWidgets('cada "+" dice qué producto agrega', (tester) async {
     await montarCliente(tester, repositorio: repositorio);
 

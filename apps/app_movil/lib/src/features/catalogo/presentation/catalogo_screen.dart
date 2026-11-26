@@ -384,8 +384,7 @@ class _BotonMenu extends StatelessWidget {
   }
 }
 
-/// Dos columnas de [TarjetaProducto]. El alto de cada fila crece con el
-/// tamaño de letra del sistema para que el texto no se corte.
+/// Dos columnas de [TarjetaProducto], con filas de [altoFilaTarjetaProducto].
 class _Cuadricula extends StatelessWidget {
   const _Cuadricula({required this.productos});
 
@@ -393,7 +392,7 @@ class _Cuadricula extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final alto = 164 + MediaQuery.textScalerOf(context).scale(140);
+    final alto = altoFilaTarjetaProducto(MediaQuery.textScalerOf(context));
     return GridView.builder(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),

@@ -568,7 +568,7 @@ class _FilaProductos extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final alto = 164 + MediaQuery.textScalerOf(context).scale(140);
+    final alto = altoFilaTarjetaProducto(MediaQuery.textScalerOf(context));
     return SizedBox(
       height: alto,
       child: ListView.separated(

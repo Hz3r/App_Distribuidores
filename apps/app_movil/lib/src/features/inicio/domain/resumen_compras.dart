@@ -64,7 +64,7 @@ const desfaseZonaDistribuidor = Duration(hours: -5);
 /// sea más antiguo. En UTC.
 DateTime desdeParaResumen({
   required DateTime ahora,
-  Duration desfaseZona = const Duration(hours: -5),
+  Duration desfaseZona = desfaseZonaDistribuidor,
 }) {
   final local = ahora.toUtc().add(desfaseZona);
   // `DateTime.utc` acepta el mes 0 (diciembre del año anterior).
@@ -88,7 +88,7 @@ ResumenCompras resumirCompras(
   required String clienteId,
   required Pedido? ultimoPedido,
   required DateTime ahora,
-  Duration desfaseZona = const Duration(hours: -5),
+  Duration desfaseZona = desfaseZonaDistribuidor,
 }) {
   final mesActual = _mesDe(ahora, desfaseZona);
   final limiteMasPedidos = ahora.toUtc().subtract(

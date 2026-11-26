@@ -9,6 +9,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'fabricas.dart';
 import 'montar_cliente.dart';
+import '../soporte/dobles_cliente.dart';
 
 /// Botón "+" de la tarjeta del producto [nombre]. Se busca por el icono: un
 /// botón deshabilitado no muestra su tooltip.

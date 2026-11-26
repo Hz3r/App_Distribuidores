@@ -1,4 +1,3 @@
-import 'package:app_movil/src/features/inicio/domain/pedidos_resumen_repositorio.dart';
 import 'package:core/core.dart';
 
 /// Constructores auxiliares de pedidos para las pruebas del inicio.
@@ -45,30 +44,3 @@ PedidoItem linea(
   subtotalCentimos: 100 * cantidad,
   creadoEn: DateTime.utc(2026),
 );
-
-/// Doble de [PedidosResumenRepositorio]: devuelve [pedidos], o lanza
-/// [error] si no es null. Anota los parámetros de cada lectura.
-class PedidosResumenRepositorioFijo implements PedidosResumenRepositorio {
-  PedidosResumenRepositorioFijo([this.pedidos = const []]);
-
-  List<Pedido> pedidos;
-  Object? error;
-  final lecturas =
-      <({String distribuidorId, String clienteId, DateTime desde})>[];
-
-  @override
-  Future<List<Pedido>> recientes({
-    required String distribuidorId,
-    required String clienteId,
-    required DateTime desde,
-  }) async {
-    lecturas.add((
-      distribuidorId: distribuidorId,
-      clienteId: clienteId,
-      desde: desde,
-    ));
-    final fallo = error;
-    if (fallo != null) throw fallo;
-    return pedidos;
-  }
-}

@@ -15,30 +15,9 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:material_ui/material_ui.dart';
 
-import '../inicio/fabricas_pedidos.dart';
 import '../registro/dobles.dart';
+import '../soporte/dobles_cliente.dart';
 import 'fabricas.dart';
-
-/// Doble de [CatalogoRepositorio]: devuelve [catalogo], o lanza [error] si
-/// no es null. Cuenta las cargas.
-class CatalogoRepositorioFijo implements CatalogoRepositorio {
-  CatalogoRepositorioFijo(this.catalogo);
-
-  Catalogo catalogo;
-  Object? error;
-  int cargas = 0;
-
-  @override
-  Future<Catalogo> cargar({
-    required String distribuidorId,
-    required bool esCliente,
-  }) async {
-    cargas++;
-    final fallo = error;
-    if (fallo != null) throw fallo;
-    return catalogo;
-  }
-}
 
 /// Catálogo de las pruebas de pantalla: 4 productos en 2 categorías y 2
 /// marcas; "Ron Blanco 1 L" está agotado. Ninguno tiene `imagenUrl`, así que

@@ -16,6 +16,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../catalogo/montar_cliente.dart';
 import '../registro/dobles.dart';
+import '../soporte/dobles_cliente.dart';
 import 'fabricas_pedidos.dart';
 
 /// Pedidos de la bodega: noviembre 234000 (sin el cancelado), octubre
@@ -151,10 +152,67 @@ void main() {
     pedidos.pedidos = [];
     await montar(tester);
 
+    expect(pedidos.lecturasUltimo, hasLength(1));
     expect(find.text('Aún no tienes pedidos'), findsOneWidget);
     expect(find.text('S/ 0.00'), findsOneWidget);
     expect(find.textContaining('vs '), findsNothing);
     expect(find.textContaining('#'), findsNothing);
+  });
+
+  testWidgets(
+    'con un único pedido de hace 120 días muestra ese pedido, S/ 0.00 '
+    'sin variación y "Productos"',
+    (tester) async {
+      pedidos.pedidos = [];
+      pedidos.ultimoFijo = pedido(
+        'viejo',
+        numero: 900,
+        estado: EstadoPedido.entregado,
+        total: 80000,
+        creadoEn: ahoraDePrueba.subtract(const Duration(days: 120)),
+        items: [linea('p3', cantidad: 10)],
+      );
+      final (:router, container: _) = await montar(tester);
+
+      expect(pedidos.lecturasUltimo.single.clienteId, 'cn-d1');
+      expect(find.text('Aún no tienes pedidos'), findsNothing);
+      expect(find.text('#900'), findsOneWidget);
+      expect(find.text('Entregado'), findsOneWidget);
+      expect(find.text('S/ 0.00'), findsOneWidget);
+      expect(find.textContaining('vs '), findsNothing);
+      expect(find.textContaining('Igual'), findsNothing);
+      expect(find.text('Lo que más pides'), findsNothing);
+      expect(find.text('Productos'), findsOneWidget);
+
+      await tester.tap(find.text('#900'));
+      await tester.pumpAndSettle();
+      expect(router.state.matchedLocation, AppRutas.pedidos);
+    },
+  );
+
+  testWidgets('con los mismos totales dice "Igual que en octubre"', (
+    tester,
+  ) async {
+    pedidos.pedidos = [
+      pedido('a', total: 100000, creadoEn: DateTime.utc(2026, 11, 20)),
+      pedido('b', total: 100000, creadoEn: DateTime.utc(2026, 10, 20)),
+    ];
+    await montar(tester);
+
+    expect(find.text('Igual que en octubre'), findsOneWidget);
+  });
+
+  testWidgets('si la variación redondea a 0 pero los totales difieren no la '
+      'muestra', (tester) async {
+    pedidos.pedidos = [
+      pedido('a', total: 100400, creadoEn: DateTime.utc(2026, 11, 20)),
+      pedido('b', total: 100000, creadoEn: DateTime.utc(2026, 10, 20)),
+    ];
+    await montar(tester);
+
+    expect(find.text('S/ 1,004.00'), findsOneWidget);
+    expect(find.textContaining('Igual'), findsNothing);
+    expect(find.textContaining('vs '), findsNothing);
   });
 
   testWidgets('no hay cartel de pedido mínimo, hora de corte ni promociones', (
@@ -453,6 +511,7 @@ void main() {
 
     expect(catalogo.cargas, cargas + 1);
     expect(pedidos.lecturas, hasLength(lecturas + 1));
+    expect(pedidos.lecturasUltimo, hasLength(lecturas + 1));
     final control =
         container.read(controlAccesoProvider.notifier) as ControlAccesoFalso;
     expect(control.recargas, 0);

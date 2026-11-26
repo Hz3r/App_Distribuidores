@@ -763,9 +763,13 @@ Estado de cada app:
   - **Inicio:** `pedidos` con `select('*, items:pedido_items(*)')`, filtrando por
     `distribuidor_id`, `cliente_id` (el `cliente_negocio_id` de la membresía activa; la RLS ya
     limita a los de su bodega) y `creado_en >=` 90 días atrás o el inicio del mes anterior, lo
-    que sea más antiguo; del más reciente al más antiguo. Con eso calcula en la app: el último
-    pedido (de cualquier estado), lo comprado en el mes en curso (suma de `total_centimos` sin
-    cancelados) y su variación contra el mes anterior, y "Lo que más pides" (suma de
+    que sea más antiguo; del más reciente al más antiguo. **El último pedido se lee aparte y sin
+    límite de fecha** (`select()` con los mismos filtros de distribuidor y bodega,
+    `order('creado_en', desc)`, `limit(1)`, sin líneas): una bodega cuyo último pedido tiene más
+    de 90 días lo sigue viendo, y "Aún no tienes pedidos" solo aparece si nunca hizo uno. Con
+    las dos lecturas calcula en la app: el último pedido (de cualquier estado), lo comprado en
+    el mes en curso (suma de `total_centimos` sin cancelados) y su variación contra el mes
+    anterior (redondeada; "igual" solo con totales idénticos), y "Lo que más pides" (suma de
     `cantidad × factor` por `producto_id` en pedidos no cancelados de los últimos 90 días,
     máximo 6). Los meses se cuentan en la zona del distribuidor; la app solo conoce
     `America/Lima` (UTC−5) y usa ese desfase para cualquier otra `zona_horaria`. No muestra

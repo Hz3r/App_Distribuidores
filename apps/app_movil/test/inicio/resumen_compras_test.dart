@@ -11,8 +11,8 @@ void main() {
   final noviembre = DateTime.utc(2026, 11, 10, 15);
   final octubre = DateTime.utc(2026, 10, 15, 15);
 
-  ResumenCompras resumir(List<Pedido> pedidos) =>
-      resumirCompras(pedidos, ahora: ahora);
+  ResumenCompras resumir(List<Pedido> pedidos, {Pedido? ultimo}) =>
+      resumirCompras(pedidos, ultimoPedido: ultimo, ahora: ahora);
 
   group('resumirCompras', () {
     test('sin pedidos: nada que mostrar', () {
@@ -87,29 +87,54 @@ void main() {
     });
 
     test('en enero el mes anterior es diciembre del año previo', () {
-      final r = resumirCompras([
-        pedido('a', total: 100000, creadoEn: DateTime.utc(2026, 12, 20)),
-        pedido('b', total: 150000, creadoEn: DateTime.utc(2027, 1, 10)),
-      ], ahora: DateTime.utc(2027, 1, 15));
+      final r = resumirCompras(
+        [
+          pedido('a', total: 100000, creadoEn: DateTime.utc(2026, 12, 20)),
+          pedido('b', total: 150000, creadoEn: DateTime.utc(2027, 1, 10)),
+        ],
+        ultimoPedido: null,
+        ahora: DateTime.utc(2027, 1, 15),
+      );
 
       expect(r.mesAnterior, 12);
       expect(r.compradoEsteMesCentimos, 150000);
       expect(r.variacionPorcentaje, 50);
     });
 
-    test('el último pedido es el más reciente, de cualquier estado', () {
-      final r = resumir([
-        pedido('viejo', numero: 1040, creadoEn: octubre),
-        pedido(
-          'nuevo',
-          numero: 1042,
-          estado: EstadoPedido.cancelado,
-          creadoEn: noviembre,
-        ),
-        pedido('medio', numero: 1041, creadoEn: noviembre.subtract(_hora)),
-      ]);
+    test('el último pedido es el que se le pasa, aunque tenga más de 90 '
+        'días y no esté entre los recientes', () {
+      final viejo = pedido(
+        'viejo',
+        numero: 900,
+        estado: EstadoPedido.entregado,
+        creadoEn: ahora.subtract(const Duration(days: 120)),
+        items: [linea('A', cantidad: 5)],
+      );
 
-      expect(r.ultimoPedido?.numero, 1042);
+      final r = resumir(const [], ultimo: viejo);
+
+      expect(r.ultimoPedido, viejo);
+      expect(r.compradoEsteMesCentimos, 0);
+      expect(r.variacionPorcentaje, isNull);
+      expect(r.productosMasPedidos, isEmpty);
+    });
+
+    test('guarda lo comprado el mes anterior para comparar totales', () {
+      final iguales = resumir([
+        pedido('a', total: 100000, creadoEn: noviembre),
+        pedido('b', total: 100000, creadoEn: octubre),
+      ]);
+      expect(iguales.variacionPorcentaje, 0);
+      expect(iguales.compradoMesAnteriorCentimos, 100000);
+
+      // +0.4 % redondea a 0 aunque los totales difieran.
+      final casi = resumir([
+        pedido('a', total: 100400, creadoEn: noviembre),
+        pedido('b', total: 100000, creadoEn: octubre),
+      ]);
+      expect(casi.variacionPorcentaje, 0);
+      expect(casi.compradoEsteMesCentimos, 100400);
+      expect(casi.compradoMesAnteriorCentimos, 100000);
     });
 
     test('más pedidos: por unidades base (cantidad × factor)', () {
@@ -187,9 +212,8 @@ void main() {
     }
   });
 
-  test('desfaseDeZona: Lima y cualquier otra zona son UTC−5', () {
-    expect(desfaseDeZona('America/Lima'), const Duration(hours: -5));
-    expect(desfaseDeZona('Europe/Madrid'), const Duration(hours: -5));
+  test('el desfase del distribuidor es UTC−5 (America/Lima)', () {
+    expect(desfaseZonaDistribuidor, const Duration(hours: -5));
   });
 
   test('productosEnOrden: en el orden dado y solo los que siguen', () {
@@ -231,5 +255,3 @@ void main() {
     expect(nombreMes(12), 'diciembre');
   });
 }
-
-const _hora = Duration(hours: 1);

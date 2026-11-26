@@ -20,8 +20,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../catalogo/montar_cliente.dart' show CatalogoRepositorioFijo;
-import '../inicio/fabricas_pedidos.dart';
+import '../soporte/dobles_cliente.dart';
 
 /// Doble de [InvitacionesRepositorio]: registra las llamadas. Por defecto
 /// responde al instante; con [pendientes] o [canjePendiente] la respuesta

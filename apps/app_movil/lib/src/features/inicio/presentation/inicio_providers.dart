@@ -30,26 +30,33 @@ DateTime Function() reloj(Ref ref) =>
 /// bodega activa falla con [StateError].
 @riverpod
 Future<ResumenCompras> resumenCompras(Ref ref) async {
-  final (:distribuidorId, :clienteId, :zonaHoraria) = ref.watch(
+  final (:distribuidorId, :clienteId) = ref.watch(
     membresiaActivaProvider.select(
-      (m) => (
-        distribuidorId: m?.distribuidorId,
-        clienteId: m?.clienteNegocioId,
-        zonaHoraria: m?.distribuidor?.zonaHoraria,
-      ),
+      (m) =>
+          (distribuidorId: m?.distribuidorId, clienteId: m?.clienteNegocioId),
     ),
   );
   if (distribuidorId == null || clienteId == null) {
     throw StateError('No hay una bodega activa para leer sus pedidos.');
   }
   final ahora = ref.read(relojProvider)();
-  final desfase = desfaseDeZona(zonaHoraria ?? '');
-  final pedidos = await ref
-      .watch(pedidosResumenRepositorioProvider)
-      .recientes(
-        distribuidorId: distribuidorId,
-        clienteId: clienteId,
-        desde: desdeParaResumen(ahora: ahora, desfaseZona: desfase),
-      );
-  return resumirCompras(pedidos, ahora: ahora, desfaseZona: desfase);
+  final repositorio = ref.watch(pedidosResumenRepositorioProvider);
+  // El último pedido va aparte: puede tener más de 90 días.
+  final (recientes, ultimo) = await (
+    repositorio.recientes(
+      distribuidorId: distribuidorId,
+      clienteId: clienteId,
+      desde: desdeParaResumen(
+        ahora: ahora,
+        desfaseZona: desfaseZonaDistribuidor,
+      ),
+    ),
+    repositorio.ultimo(distribuidorId: distribuidorId, clienteId: clienteId),
+  ).wait;
+  return resumirCompras(
+    recientes,
+    ultimoPedido: ultimo,
+    ahora: ahora,
+    desfaseZona: desfaseZonaDistribuidor,
+  );
 }

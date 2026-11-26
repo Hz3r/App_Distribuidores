@@ -340,15 +340,21 @@ class _TarjetasResumen extends StatelessWidget {
     );
   }
 
-  /// "▲ 8% vs octubre" en verde, "▼ 8% vs octubre" en rojo; `null` si no
-  /// hay con qué comparar.
+  /// "▲ 8% vs octubre" en verde, "▼ 8% vs octubre" en rojo, "Igual que en
+  /// octubre" con los mismos totales; `null` si no hay con qué comparar o si
+  /// la diferencia redondea a 0 % sin ser nula.
   static (String, Color)? _variacion(ResumenCompras resumen) {
     final variacion = resumen.variacionPorcentaje;
     if (variacion == null) return null;
     final mes = nombreMes(resumen.mesAnterior);
     if (variacion > 0) return ('▲ $variacion% vs $mes', ColoresApp.exito);
     if (variacion < 0) return ('▼ ${-variacion}% vs $mes', ColoresApp.error);
-    return ('Igual que en $mes', ColoresApp.textoSuave);
+    // Redondea a 0: "igual" solo si los totales coinciden de verdad.
+    if (resumen.compradoEsteMesCentimos ==
+        resumen.compradoMesAnteriorCentimos) {
+      return ('Igual que en $mes', ColoresApp.textoSuave);
+    }
+    return null;
   }
 }
 

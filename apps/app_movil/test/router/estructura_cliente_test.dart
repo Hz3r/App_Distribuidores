@@ -11,6 +11,7 @@ import 'package:material_ui/material_ui.dart';
 import '../catalogo/montar_cliente.dart';
 import '../registro/dobles.dart';
 import '../sesion/acceso_fijo.dart';
+import '../soporte/dobles_cliente.dart';
 
 void main() {
   late ProviderContainer container;

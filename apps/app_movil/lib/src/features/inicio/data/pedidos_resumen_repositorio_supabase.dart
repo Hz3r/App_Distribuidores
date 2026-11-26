@@ -3,8 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../domain/pedidos_resumen_repositorio.dart';
 
-/// [PedidosResumenRepositorio] sobre Supabase. Una lectura de `pedidos` con
-/// sus líneas embebidas. La RLS ya limita a la bodega a sus propios pedidos;
+/// [PedidosResumenRepositorio] sobre Supabase: lecturas de `pedidos` (las
+/// recientes con sus líneas embebidas). La RLS ya limita a la bodega a sus propios pedidos;
 /// igual se filtra por distribuidor y bodega.
 class PedidosResumenRepositorioSupabase implements PedidosResumenRepositorio {
   PedidosResumenRepositorioSupabase(this._cliente);
@@ -25,5 +25,21 @@ class PedidosResumenRepositorioSupabase implements PedidosResumenRepositorio {
         .gte('creado_en', desde.toUtc().toIso8601String())
         .order('creado_en', ascending: false);
     return filas.map(Pedido.fromJson).toList();
+  }
+
+  @override
+  Future<Pedido?> ultimo({
+    required String distribuidorId,
+    required String clienteId,
+  }) async {
+    final fila = await _cliente
+        .from('pedidos')
+        .select()
+        .eq('distribuidor_id', distribuidorId)
+        .eq('cliente_id', clienteId)
+        .order('creado_en', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    return fila == null ? null : Pedido.fromJson(fila);
   }
 }

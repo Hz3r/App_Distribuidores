@@ -8,18 +8,25 @@ class ResumenCompras {
   const ResumenCompras({
     required this.ultimoPedido,
     required this.compradoEsteMesCentimos,
+    required this.compradoMesAnteriorCentimos,
     required this.variacionPorcentaje,
     required this.productosMasPedidos,
     required this.mesAnterior,
   });
 
-  /// El más reciente, de cualquier estado; `null` sin pedidos.
+  /// El más reciente, de cualquier estado y sin límite de fecha; `null` solo
+  /// si la bodega nunca hizo un pedido.
   final Pedido? ultimoPedido;
 
   /// Suma de los totales del mes en curso, sin los cancelados.
   final int compradoEsteMesCentimos;
 
-  /// Contra el mes anterior, redondeado; `null` si ese mes fue 0.
+  /// Suma de los totales del mes anterior, sin los cancelados.
+  final int compradoMesAnteriorCentimos;
+
+  /// Contra el mes anterior, redondeado; `null` si ese mes fue 0. Puede ser
+  /// 0 con totales distintos (menos de ±0.5 %): para decir "igual", comparar
+  /// los totales.
   final int? variacionPorcentaje;
 
   /// Ids de producto, de más a menos unidades base, máximo
@@ -37,15 +44,12 @@ const maxProductosMasPedidos = 6;
 /// Días hacia atrás que cuentan para "Lo que más pides".
 const diasMasPedidos = 90;
 
-/// Desfase de la zona horaria del distribuidor respecto de UTC.
+/// Desfase de la zona horaria del distribuidor respecto de UTC: el de
+/// `America/Lima` (UTC−5, sin horario de verano).
 ///
 /// Limitación: la app no tiene una base de datos de zonas horarias, así que
-/// solo conoce `America/Lima` (UTC−5, sin horario de verano) y usa ese mismo
-/// desfase para cualquier otra zona.
-Duration desfaseDeZona(String zonaHoraria) => switch (zonaHoraria) {
-  'America/Lima' => const Duration(hours: -5),
-  _ => const Duration(hours: -5),
-};
+/// usa este desfase para cualquier `zonaHoraria` del distribuidor.
+const desfaseZonaDistribuidor = Duration(hours: -5);
 
 /// Desde cuándo hay que leer los pedidos para [resumirCompras]: 90 días
 /// atrás o el inicio (en la zona del distribuidor) del mes anterior, lo que
@@ -64,12 +68,15 @@ DateTime desdeParaResumen({
   return inicioMesAnterior.isBefore(hace90) ? inicioMesAnterior : hace90;
 }
 
-/// Resume [pedidos] de una bodega.
+/// Resume [pedidos] (los recientes, ver [desdeParaResumen]) de una bodega.
+/// [ultimoPedido] se lee aparte y sin límite de fecha: puede ser más viejo
+/// que todos los de [pedidos].
 ///
 /// [ahora] se pasa como parámetro para poder probar; los meses se cuentan
 /// en la zona horaria [desfaseZona] del distribuidor (America/Lima = UTC−5).
 ResumenCompras resumirCompras(
   List<Pedido> pedidos, {
+  required Pedido? ultimoPedido,
   required DateTime ahora,
   Duration desfaseZona = const Duration(hours: -5),
 }) {
@@ -78,12 +85,10 @@ ResumenCompras resumirCompras(
     const Duration(days: diasMasPedidos),
   );
 
-  Pedido? ultimo;
   var esteMes = 0;
   var anterior = 0;
   final unidades = <String, int>{};
   for (final pedido in pedidos) {
-    if (ultimo == null || _esMasReciente(pedido, ultimo)) ultimo = pedido;
     if (pedido.estado == EstadoPedido.cancelado) continue;
 
     final mes = _mesDe(pedido.creadoEn, desfaseZona);
@@ -111,8 +116,9 @@ ResumenCompras resumirCompras(
     });
 
   return ResumenCompras(
-    ultimoPedido: ultimo,
+    ultimoPedido: ultimoPedido,
     compradoEsteMesCentimos: esteMes,
+    compradoMesAnteriorCentimos: anterior,
     variacionPorcentaje: anterior == 0
         ? null
         : _redondearDivision((esteMes - anterior) * 100, anterior),
@@ -163,12 +169,6 @@ const _meses = [
 int _mesDe(DateTime instante, Duration desfase) {
   final local = instante.toUtc().add(desfase);
   return local.year * 12 + local.month - 1;
-}
-
-/// [a] es más reciente que [b]; si se crearon a la vez, el de mayor número.
-bool _esMasReciente(Pedido a, Pedido b) {
-  final porFecha = a.creadoEn.compareTo(b.creadoEn);
-  return porFecha != 0 ? porFecha > 0 : a.numero > b.numero;
 }
 
 /// [dividendo] ÷ [divisor] (positivo) redondeado al entero más cercano; la

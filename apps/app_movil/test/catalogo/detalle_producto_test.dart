@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'fabricas.dart';
 import 'montar_cliente.dart';
+import '../soporte/dobles_cliente.dart';
 
 /// Cantidad elegida en la barra inferior del detalle.
 String cantidad(WidgetTester tester) =>

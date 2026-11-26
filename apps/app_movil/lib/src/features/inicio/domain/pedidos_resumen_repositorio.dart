@@ -11,4 +11,11 @@ abstract interface class PedidosResumenRepositorio {
     required String clienteId,
     required DateTime desde,
   });
+
+  /// El pedido más reciente de la bodega, de cualquier estado y sin límite
+  /// de fecha, sin sus líneas; `null` si nunca hizo uno.
+  Future<Pedido?> ultimo({
+    required String distribuidorId,
+    required String clienteId,
+  });
 }

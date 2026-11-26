@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../../config/rutas.dart';
 import '../../../../shared/tema_app.dart';
+import '../../../../shared/widgets/texto_ajustable.dart';
 import '../../../carrito/presentation/carrito_providers.dart';
 import '../../domain/catalogo.dart';
 import '../../domain/disponibilidad.dart';
@@ -95,17 +96,12 @@ class TarjetaProducto extends ConsumerWidget {
                     const SizedBox(height: 4),
                     IndicadorDisponibilidad(disponible: item.disponible),
                     const SizedBox(height: 8),
-                    // El precio va solo en su línea y se achica si no cabe:
-                    // un precio recortado se leería como otro número.
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: AlignmentDirectional.centerStart,
-                      child: Text(
-                        Dinero.formatear(item.precioCentimos),
-                        maxLines: 1,
-                        style: textos.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                    // El precio va solo en su línea y nunca se recorta: uno
+                    // recortado se leería como otro número.
+                    TextoAjustable(
+                      Dinero.formatear(item.precioCentimos),
+                      style: textos.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                     Row(

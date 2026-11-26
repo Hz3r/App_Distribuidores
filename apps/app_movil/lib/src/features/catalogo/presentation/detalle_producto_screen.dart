@@ -8,6 +8,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../../config/rutas.dart';
 import '../../../shared/tema_app.dart';
 import '../../../shared/widgets/boton_circular.dart';
+import '../../../shared/widgets/texto_ajustable.dart';
 import '../../carrito/domain/carrito.dart';
 import '../../carrito/presentation/carrito_providers.dart';
 import '../../carrito/presentation/widgets/icono_carrito.dart';
@@ -123,12 +124,8 @@ class _DetalleProductoScreenState extends ConsumerState<DetalleProductoScreen> {
       preciosVolumen: elegida.preciosVolumen,
       cantidad: n,
     );
-    // La base cobra la línea ya sumada: lo que sube el carrito es el total
-    // de la línea nueva menos el de la que ya tiene.
-    final linea = enCarrito + cantidad;
-    final montoAgregar =
-        linea * unitario(linea) -
-        (enCarrito == 0 ? 0 : enCarrito * unitario(enCarrito));
+    // La base cobra la línea ya sumada, con el tramo de esa cantidad.
+    final linea = math.max(enCarrito + cantidad, 1);
     return _Vista(
       producto: producto,
       categoria: catalogo.categorias
@@ -150,7 +147,8 @@ class _DetalleProductoScreenState extends ConsumerState<DetalleProductoScreen> {
       maximo: maximo,
       cantidad: cantidad,
       enCarrito: enCarrito,
-      montoAgregar: montoAgregar,
+      montoCantidad: cantidad * unitario(math.max(cantidad, 1)),
+      precioLinea: unitario(linea),
       tramos: tramosDePrecio(
         precioBase: elegida.precioBaseCentimos,
         precioLista: precioLista,
@@ -207,7 +205,8 @@ class _Vista {
     required this.maximo,
     required this.cantidad,
     required this.enCarrito,
-    required this.montoAgregar,
+    required this.montoCantidad,
+    required this.precioLinea,
     required this.tramos,
   });
 
@@ -235,9 +234,12 @@ class _Vista {
   /// Lo que el carrito ya tiene de [elegida].
   final int enCarrito;
 
-  /// Cuánto sube el carrito al agregar [cantidad], con el precio de la
-  /// línea sumada ([enCarrito] + [cantidad]).
-  final int montoAgregar;
+  /// [cantidad] × su precio unitario, para el botón con el carrito vacío
+  /// de [elegida].
+  final int montoCantidad;
+
+  /// Precio unitario de la línea sumada ([cantidadLinea]).
+  final int precioLinea;
 
   /// Cantidad con la que se cobrará la línea; decide el tramo resaltado.
   int get cantidadLinea => math.max(enCarrito + cantidad, 1);
@@ -512,9 +514,21 @@ class _BarraAgregar extends StatelessWidget {
         'Ya tienes en el carrito todo lo disponible de este producto.',
         textAlign: TextAlign.center,
       );
+    } else if (vista.enCarrito > 0) {
+      // Sin monto: el total de la línea va en el texto de arriba. Restar
+      // totales podría dar negativo al pasar a un tramo más barato.
+      etiqueta = Text('Agregar $cantidad más', textAlign: TextAlign.center);
     } else {
-      etiqueta = _EtiquetaAgregar(monto: Dinero.formatear(vista.montoAgregar));
+      etiqueta = _EtiquetaAgregar(monto: Dinero.formatear(vista.montoCantidad));
     }
+    final linea = vista.cantidadLinea;
+    final aviso = vista.enCarrito <= 0
+        ? null
+        : cantidad <= 0
+        ? 'Ya tienes ${vista.enCarrito} en el carrito.'
+        : 'Ya tienes ${vista.enCarrito} en el carrito. Quedarán $linea a '
+              '${Dinero.formatear(vista.precioLinea)} c/u: '
+              '${Dinero.formatear(linea * vista.precioLinea)}.';
 
     return DecoratedBox(
       decoration: const BoxDecoration(
@@ -529,9 +543,9 @@ class _BarraAgregar extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (vista.enCarrito > 0) ...[
+              if (aviso != null) ...[
                 Text(
-                  'Ya tienes ${vista.enCarrito} en el carrito.',
+                  aviso,
                   style: Theme.of(context).textTheme.bodySmall
                       ?.copyWith(color: ColoresApp.textoSuave),
                 ),
@@ -574,7 +588,8 @@ class _BarraAgregar extends StatelessWidget {
 }
 
 /// "Agregar · S/ X" en una línea si cabe; si no, "Agregar" arriba y el monto
-/// abajo, que se achica antes que cortarse.
+/// abajo, que se achica (hasta 11 puntos) o pasa a otra línea antes que
+/// cortarse.
 class _EtiquetaAgregar extends StatelessWidget {
   const _EtiquetaAgregar({required this.monto});
 
@@ -599,10 +614,7 @@ class _EtiquetaAgregar extends StatelessWidget {
         if (cabe) return Text(enUnaLinea, maxLines: 1);
         return Column(
           mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Agregar', maxLines: 1),
-            FittedBox(fit: BoxFit.scaleDown, child: Text(monto, maxLines: 1)),
-          ],
+          children: [const Text('Agregar', maxLines: 1), TextoAjustable(monto)],
         );
       },
     );

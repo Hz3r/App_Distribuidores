@@ -3,6 +3,7 @@ import 'package:app_movil/src/features/carrito/presentation/carrito_providers.da
 import 'package:app_movil/src/features/catalogo/domain/catalogo.dart';
 import 'package:app_movil/src/features/catalogo/presentation/detalle_producto_screen.dart';
 import 'package:app_movil/src/features/catalogo/presentation/widgets/tarjeta_producto.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -360,6 +361,15 @@ void main() {
       await montarCliente(tester, repositorio: repositorio, ancho: 320);
 
       expectSinRecortar(tester, find.text(texto));
+      // Si se achica, no por debajo de 11 puntos.
+      final parrafo = tester.renderObject<RenderParagraph>(find.text(texto));
+      // Lo que se ve, con cualquier escalado de un padre (FittedBox).
+      final escalaVisible =
+          tester.getRect(find.text(texto)).width / parrafo.size.width;
+      final tamano =
+          parrafo.textScaler.scale(parrafo.text.style!.fontSize!) *
+          escalaVisible;
+      expect(tamano, greaterThanOrEqualTo(11));
       expect(tester.takeException(), isNull);
     });
   }

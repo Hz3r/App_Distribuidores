@@ -218,6 +218,7 @@ void main() {
         'Ya tienes en el carrito todo lo disponible de este producto.',
       ),
     );
+    // Sin nada más que agregar, solo dice cuánto hay.
     expect(find.text('Ya tienes 1 en el carrito.'), findsOneWidget);
     expect(boton.onPressed, isNull);
   });
@@ -286,25 +287,70 @@ void main() {
     expect(router.state.matchedLocation, AppRutas.catalogo);
   });
 
-  testWidgets('con 5 en el carrito y 5 elegidas: tramo y monto de la línea '
-      'sumada', (tester) async {
+  /// Abre el detalle de "Cerveza Rubia" con [enCarrito] cajas ya en el
+  /// carrito y elige [elegidas].
+  Future<void> conCarrito(
+    WidgetTester tester, {
+    required int enCarrito,
+    required int elegidas,
+    double ancho = 390,
+  }) async {
     final (:router, :container) = await montarCliente(
       tester,
       repositorio: repositorio,
       ubicacion: AppRutas.detalleProducto('p1'),
+      ancho: ancho,
     );
     container
         .read(carritoActualProvider.notifier)
-        .agregar('p1-caja', 5, disponible: 340);
+        .agregar('p1-caja', enCarrito, disponible: 340);
     await tester.pump();
-    expect(find.text('Ya tienes 5 en el carrito.'), findsOneWidget);
+    await tocarMas(tester, elegidas - 1);
+    expect(cantidad(tester), '$elegidas');
+  }
 
-    await tocarMas(tester, 4);
+  testWidgets('con 5 en el carrito y 5 elegidas: tramo y total de la línea '
+      'sumada, sin restas', (tester) async {
+    await conCarrito(tester, enCarrito: 5, elegidas: 5);
 
-    expect(cantidad(tester), '5');
     expect(tester.widget<FilaTramo>(tramoResaltado()).tramo.desde, 10);
-    // 10 × 60.50 − 5 × 62.90 = 605.00 − 314.50
-    expect(etiquetaAgregar(tester), 'Agregar · S/ 290.50');
+    expect(etiquetaAgregar(tester), 'Agregar 5 más');
+    expect(
+      find.text(
+        'Ya tienes 5 en el carrito. Quedarán 10 a S/ 60.50 c/u: S/ 605.00.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('con 49 en el carrito y 1 elegida pasa a "50 o más" sin montos '
+      'negativos', (tester) async {
+    await conCarrito(tester, enCarrito: 49, elegidas: 1);
+
+    expect(tester.widget<FilaTramo>(tramoResaltado()).tramo.desde, 50);
+    expect(etiquetaAgregar(tester), 'Agregar 1 más');
+    expect(
+      find.text(
+        'Ya tienes 49 en el carrito. Quedarán 50 a S/ 58.00 c/u: S/ 2,900.00.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('-'), findsNothing);
+    expect(find.textContaining('−'), findsNothing);
+  });
+
+  testWidgets('a 320 de ancho el texto de lo que quedará se lee completo', (
+    tester,
+  ) async {
+    await conCarrito(tester, enCarrito: 5, elegidas: 5, ancho: 320);
+
+    expectSinRecortar(
+      tester,
+      find.text(
+        'Ya tienes 5 en el carrito. Quedarán 10 a S/ 60.50 c/u: S/ 605.00.',
+      ),
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('con el carrito vacío no dice cuánto hay en el carrito', (

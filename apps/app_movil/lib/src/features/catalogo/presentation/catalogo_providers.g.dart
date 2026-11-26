@@ -125,7 +125,7 @@ final class CatalogoProvider
   }
 }
 
-String _$catalogoHash() => r'0708b10a9a9fa28483a8c1524652d14a83178cfc';
+String _$catalogoHash() => r'09055d8a52ac43a5ecc290365c1feedf87e5840f';
 
 /// Filtros elegidos en el catálogo. Se conservan sin pantallas que los
 /// escuchen (el inicio elige una categoría antes de abrir el catálogo) y

@@ -230,6 +230,7 @@ void main() {
     final catalogo = productosDelCatalogo(
       Catalogo(
         distribuidorId: 'd1',
+        clienteNegocioId: 'cn-d1',
         categorias: [categoria('c1')],
         productos: [producto('p1'), producto('p2'), producto('p3')],
         preciosLista: const {},

@@ -28,37 +28,60 @@ CatalogoRepositorio catalogoRepositorio(Ref ref) =>
 /// inmediato con "Reintentar".
 @Riverpod(keepAlive: true, retry: sinReintentos)
 Future<Catalogo> catalogo(Ref ref) async {
-  final (:distribuidorId, :esCliente) = ref.watch(
-    membresiaActivaProvider.select(
-      (m) => (
-        distribuidorId: m?.distribuidorId,
-        esCliente: m?.rol == RolMembresia.cliente,
-      ),
-    ),
-  );
+  final (identidad: (:distribuidorId, :clienteNegocioId), :esCliente) = ref
+      .watch(
+        membresiaActivaProvider.select(
+          (m) => (
+            identidad: identidadCatalogo(m),
+            esCliente: m?.rol == RolMembresia.cliente,
+          ),
+        ),
+      );
   if (distribuidorId == null) {
     throw StateError('No hay un distribuidor activo para leer el catálogo.');
   }
   return ref
       .watch(catalogoRepositorioProvider)
-      .cargar(distribuidorId: distribuidorId, esCliente: esCliente);
+      .cargar(
+        distribuidorId: distribuidorId,
+        esCliente: esCliente,
+        clienteNegocioId: clienteNegocioId,
+      );
 }
 
+/// Para quién es el catálogo de [membresia]: su distribuidor y, si es una
+/// bodega, su `clienteNegocioId` (`null` para otros roles). El catálogo se
+/// recarga cuando cambia, y las pantallas solo usan uno con esta identidad.
+({String? distribuidorId, String? clienteNegocioId}) identidadCatalogo(
+  Membresia? membresia,
+) => (
+  distribuidorId: membresia?.distribuidorId,
+  clienteNegocioId: membresia?.rol == RolMembresia.cliente
+      ? membresia?.clienteNegocioId
+      : null,
+);
+
 /// El catálogo como lo leen las pantallas: la [lectura] de [catalogoProvider]
-/// y el [catalogo], solo si es del distribuidor activo. Mientras llega el de
-/// otro distribuidor, [catalogo] es `null` y la pantalla dice "cargando" (o
-/// el error): nunca muestra ni deja agregar productos del anterior. Al
+/// y el [catalogo], solo si es de la membresía activa (mismo distribuidor y
+/// misma bodega, ver [identidadCatalogo]). Mientras llega el de otra,
+/// [catalogo] es `null` y la pantalla dice "cargando" (o el error): nunca
+/// muestra productos ni precios de la anterior, ni deja agregarlos. Al
 /// deslizar para recargar sigue siendo el actual.
 ({AsyncValue<Catalogo> lectura, Catalogo? catalogo}) observarCatalogo(
   WidgetRef ref,
 ) {
-  final distribuidorId = ref.watch(
-    membresiaActivaProvider.select((m) => m?.distribuidorId),
+  final (:distribuidorId, :clienteNegocioId) = ref.watch(
+    membresiaActivaProvider.select(identidadCatalogo),
   );
   final lectura = ref.watch(catalogoProvider);
   return (
     lectura: lectura,
-    catalogo: lectura.valorVigente((c) => c.distribuidorId == distribuidorId),
+    catalogo: lectura.valorVigente(
+      (c) => c.esDe(
+        distribuidorId: distribuidorId,
+        clienteNegocioId: clienteNegocioId,
+      ),
+    ),
   );
 }
 

@@ -24,6 +24,7 @@ import 'fabricas.dart';
 /// no hay llamadas de red.
 Catalogo catalogoDePrueba() => Catalogo(
   distribuidorId: 'd1',
+  clienteNegocioId: 'cn-d1',
   categorias: [
     categoria('c1', nombre: 'Cervezas', orden: 1),
     categoria('c2', nombre: 'Rones', orden: 2),

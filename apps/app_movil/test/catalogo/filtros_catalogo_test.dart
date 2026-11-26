@@ -9,6 +9,7 @@ void main() {
   final productos = productosDelCatalogo(
     Catalogo(
       distribuidorId: 'd1',
+      clienteNegocioId: 'cn-d1',
       categorias: [categoria('ron'), categoria('pisco')],
       productos: [
         producto(
@@ -132,6 +133,7 @@ void main() {
       ...productosDelCatalogo(
         Catalogo(
           distribuidorId: 'd1',
+          clienteNegocioId: 'cn-d1',
           categorias: const [],
           productos: [
             producto('otro', marca: 'Portón', categoriaId: null),
@@ -197,6 +199,7 @@ void main() {
     final sinMarca = productosDelCatalogo(
       Catalogo(
         distribuidorId: 'd1',
+        clienteNegocioId: 'cn-d1',
         categorias: const [],
         productos: [producto('x', nombre: 'Vino Tinto', categoriaId: null)],
         preciosLista: const <String, int>{},

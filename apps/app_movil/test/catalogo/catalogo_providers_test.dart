@@ -17,14 +17,20 @@ import '../sesion/acceso_fijo.dart';
 class CatalogoRepositorioDoble implements CatalogoRepositorio {
   final cargas = <(String, bool)>[];
 
+  /// `clienteNegocioId` de cada carga.
+  final bodegas = <String?>[];
+
   @override
   Future<Catalogo> cargar({
     required String distribuidorId,
     required bool esCliente,
+    required String? clienteNegocioId,
   }) async {
     cargas.add((distribuidorId, esCliente));
+    bodegas.add(clienteNegocioId);
     return Catalogo(
       distribuidorId: distribuidorId,
+      clienteNegocioId: clienteNegocioId,
       categorias: const [],
       productos: const [],
       preciosLista: const {},
@@ -129,6 +135,64 @@ void main() {
 
       expect(repositorio.cargas, [('d1', true), ('d2', true)]);
     });
+
+    test(
+      'lleva la identidad con la que se cargó: distribuidor y bodega',
+      () async {
+        control.fijar(
+          ConAcceso(
+            membresias: [d1, d2],
+            activa: d1.copyWith(clienteNegocioId: 'cn-d1'),
+          ),
+        );
+        final catalogo = await container.read(catalogoProvider.future);
+
+        expect(repositorio.bodegas, ['cn-d1']);
+        expect(catalogo.distribuidorId, 'd1');
+        expect(catalogo.clienteNegocioId, 'cn-d1');
+        expect(
+          catalogo.esDe(distribuidorId: 'd1', clienteNegocioId: 'cn-d1'),
+          isTrue,
+        );
+        expect(
+          catalogo.esDe(distribuidorId: 'd1', clienteNegocioId: 'cn-otra'),
+          isFalse,
+        );
+      },
+    );
+
+    test(
+      'se recarga al cambiar de bodega dentro del mismo distribuidor',
+      () async {
+        final una = d1.copyWith(clienteNegocioId: 'cn-a');
+        final otra = d1.copyWith(id: 'm-otra', clienteNegocioId: 'cn-b');
+        control.fijar(ConAcceso(membresias: [una, otra], activa: una));
+        container.listen(catalogoProvider, (_, _) {});
+        await container.read(catalogoProvider.future);
+
+        control.fijar(ConAcceso(membresias: [una, otra], activa: otra));
+        final catalogo = await container.read(catalogoProvider.future);
+
+        expect(repositorio.bodegas, ['cn-a', 'cn-b']);
+        expect(catalogo.clienteNegocioId, 'cn-b');
+      },
+    );
+
+    test(
+      'un repartidor no lleva bodega aunque su membresía tuviera una',
+      () async {
+        control.fijar(
+          ConAcceso(
+            membresias: [repartidor],
+            activa: repartidor.copyWith(clienteNegocioId: 'cn-x'),
+          ),
+        );
+        final catalogo = await container.read(catalogoProvider.future);
+
+        expect(repositorio.bodegas, [null]);
+        expect(catalogo.clienteNegocioId, isNull);
+      },
+    );
 
     test('ref.invalidate lo vuelve a cargar', () async {
       container.listen(catalogoProvider, (_, _) {});

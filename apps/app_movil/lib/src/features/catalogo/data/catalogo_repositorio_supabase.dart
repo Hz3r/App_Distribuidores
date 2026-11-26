@@ -17,6 +17,7 @@ class CatalogoRepositorioSupabase implements CatalogoRepositorio {
   Future<Catalogo> cargar({
     required String distribuidorId,
     required bool esCliente,
+    required String? clienteNegocioId,
   }) async {
     final (categorias, productos, preciosLista) = await (
       _cliente
@@ -33,6 +34,7 @@ class CatalogoRepositorioSupabase implements CatalogoRepositorio {
     ).wait;
     return Catalogo.desde(
       distribuidorId: distribuidorId,
+      clienteNegocioId: clienteNegocioId,
       categorias: categorias.map(Categoria.fromJson).toList(),
       productos: productos.map(Producto.fromJson).toList(),
       preciosLista: preciosLista,

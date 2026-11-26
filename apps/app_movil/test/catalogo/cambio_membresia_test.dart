@@ -25,6 +25,7 @@ class CatalogoPorDistribuidor implements CatalogoRepositorio {
   Future<Catalogo> cargar({
     required String distribuidorId,
     required bool esCliente,
+    required String? clienteNegocioId,
   }) => distribuidorId == 'd1' ? Future.value(catalogoDePrueba()) : d2.future;
 }
 
@@ -69,6 +70,7 @@ class PedidosPorDistribuidor implements PedidosResumenRepositorio {
 /// Catálogo de `d2`: un solo producto, "Pisco del Sur".
 Catalogo catalogoDeD2() => Catalogo(
   distribuidorId: 'd2',
+  clienteNegocioId: 'cn-d2',
   categorias: const [],
   productos: [
     producto(

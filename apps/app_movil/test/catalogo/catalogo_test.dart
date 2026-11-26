@@ -10,6 +10,7 @@ Catalogo _catalogo(
   Map<String, int> preciosLista = const {},
 }) => Catalogo(
   distribuidorId: 'd1',
+  clienteNegocioId: 'cn-d1',
   categorias: categorias ?? [categoria('c1')],
   productos: productos,
   preciosLista: preciosLista,
@@ -179,6 +180,7 @@ void main() {
     test('deja las categorías activas, por orden y nombre', () {
       final catalogo = Catalogo.desde(
         distribuidorId: 'd1',
+        clienteNegocioId: 'cn-d1',
         categorias: [
           categoria('ron', nombre: 'Ron', orden: 1),
           categoria('vino', nombre: 'Vino', orden: 0, activo: false),
@@ -195,6 +197,7 @@ void main() {
     test('arma el mapa presentación → precio de la lista', () {
       final catalogo = Catalogo.desde(
         distribuidorId: 'd1',
+        clienteNegocioId: 'cn-d1',
         categorias: const [],
         productos: const [],
         preciosLista: [

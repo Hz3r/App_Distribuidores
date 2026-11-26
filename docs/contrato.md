@@ -761,8 +761,9 @@ Estado de cada app:
     bodega); todo filtrado por `distribuidor_id`. El precio y la disponibilidad que se muestran
     siguen las reglas de `crear_pedido`, que los vuelve a calcular. **El catálogo queda en
     memoria durante la sesión**: solo se vuelve a leer al deslizar hacia abajo, al tocar
-    "Reintentar" o al cambiar de distribuidor o de cuenta (mientras llega el nuevo no se
-    muestra el anterior). Entretanto, la BD puede cambiar precios, listas y stock, así que lo
+    "Reintentar" o al cambiar de distribuidor, de bodega o de cuenta (mientras llega el nuevo
+    no se muestra el anterior: el catálogo lleva el distribuidor y la bodega para los que se
+    cargó). Entretanto, la BD puede cambiar precios, listas y stock, así que lo
     que se ve puede estar desactualizado. **La pantalla de checkout deberá volver a validar
     disponibilidad y precios** antes de confirmar; la que decide es la BD (`crear_pedido`, con
     bloqueo de fila), nunca el catálogo en memoria.

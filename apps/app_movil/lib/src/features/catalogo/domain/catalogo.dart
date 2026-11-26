@@ -8,6 +8,7 @@ import 'precios.dart';
 class Catalogo {
   const Catalogo({
     required this.distribuidorId,
+    required this.clienteNegocioId,
     required this.categorias,
     required this.productos,
     required this.preciosLista,
@@ -18,6 +19,7 @@ class Catalogo {
   /// presentación.
   factory Catalogo.desde({
     required String distribuidorId,
+    required String? clienteNegocioId,
     required List<Categoria> categorias,
     required List<Producto> productos,
     required List<PrecioLista> preciosLista,
@@ -28,6 +30,7 @@ class Catalogo {
     ]..sort((a, b) => _porOrdenYNombre(a.orden, a.nombre, b.orden, b.nombre));
     return Catalogo(
       distribuidorId: distribuidorId,
+      clienteNegocioId: clienteNegocioId,
       categorias: activas,
       productos: productos,
       preciosLista: {
@@ -36,10 +39,22 @@ class Catalogo {
     );
   }
 
-  /// Distribuidor con el que se cargó. Las pantallas solo usan un catálogo
-  /// del distribuidor activo: al cambiar de membresía, el anterior sigue en
-  /// memoria mientras llega el nuevo.
+  /// Identidad con la que se cargó: el distribuidor y la bodega
+  /// ([clienteNegocioId], `null` si no es una bodega), que decide la lista de
+  /// precios. Las pantallas solo usan el catálogo de la membresía activa (ver
+  /// [esDe]): al cambiar de membresía, el anterior sigue en memoria mientras
+  /// llega el nuevo.
   final String distribuidorId;
+  final String? clienteNegocioId;
+
+  /// Si se cargó para el distribuidor [distribuidorId] y la bodega
+  /// [clienteNegocioId].
+  bool esDe({
+    required String? distribuidorId,
+    required String? clienteNegocioId,
+  }) =>
+      this.distribuidorId == distribuidorId &&
+      this.clienteNegocioId == clienteNegocioId;
 
   /// Activas, por `orden` y nombre.
   final List<Categoria> categorias;

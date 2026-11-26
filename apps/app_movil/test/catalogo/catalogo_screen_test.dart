@@ -203,6 +203,7 @@ void main() {
       'disponible', (tester) async {
     repositorio.catalogo = Catalogo(
       distribuidorId: 'd1',
+      clienteNegocioId: 'cn-d1',
       categorias: const [],
       productos: [
         producto(
@@ -239,6 +240,7 @@ void main() {
     final manejador = tester.ensureSemantics();
     repositorio.catalogo = Catalogo(
       distribuidorId: 'd1',
+      clienteNegocioId: 'cn-d1',
       categorias: const [],
       productos: [
         producto(
@@ -315,6 +317,7 @@ void main() {
   testWidgets('catálogo vacío lo dice', (tester) async {
     repositorio.catalogo = const Catalogo(
       distribuidorId: 'd1',
+      clienteNegocioId: 'cn-d1',
       categorias: [],
       productos: [],
       preciosLista: {},
@@ -416,6 +419,7 @@ void main() {
     ) async {
       repositorio.catalogo = Catalogo(
         distribuidorId: 'd1',
+        clienteNegocioId: 'cn-d1',
         categorias: const [],
         productos: [
           producto(

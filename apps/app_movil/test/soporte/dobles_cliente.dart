@@ -20,6 +20,7 @@ class CatalogoRepositorioFijo implements CatalogoRepositorio {
   Future<Catalogo> cargar({
     required String distribuidorId,
     required bool esCliente,
+    required String? clienteNegocioId,
   }) async {
     cargas++;
     final fallo = error;
@@ -35,8 +36,10 @@ class CatalogoRepositorioVacio implements CatalogoRepositorio {
   Future<Catalogo> cargar({
     required String distribuidorId,
     required bool esCliente,
+    required String? clienteNegocioId,
   }) async => Catalogo(
     distribuidorId: distribuidorId,
+    clienteNegocioId: clienteNegocioId,
     categorias: const [],
     productos: const [],
     preciosLista: const {},

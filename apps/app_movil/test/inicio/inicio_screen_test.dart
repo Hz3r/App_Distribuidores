@@ -481,13 +481,44 @@ void main() {
     expect(find.text('#1042'), findsOneWidget);
   });
 
-  testWidgets('si falla el catálogo también muestra "Reintentar"', (
+  testWidgets('si falla solo el resumen, el catálogo se ve y el error queda '
+      'en lugar de las tarjetas', (tester) async {
+    pedidos.error = Exception('sin red');
+    await montar(tester);
+
+    expect(find.text('No pudimos cargar tu resumen.'), findsOneWidget);
+    expect(find.text('Reintentar'), findsOneWidget);
+    expect(find.text('Comprado este mes'), findsNothing);
+    expect(find.text('Categorías'), findsOneWidget);
+    expect(find.text('Productos'), findsOneWidget);
+    expect(tarjetasDelInicio(tester), isNotEmpty);
+    // El error va arriba de las categorías, donde irían las tarjetas.
+    expect(
+      tester.getTopLeft(find.text('Reintentar')).dy,
+      lessThan(tester.getTopLeft(find.text('Categorías')).dy),
+    );
+    final cargas = catalogo.cargas;
+
+    pedidos.error = null;
+    await tester.tap(find.text('Reintentar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('#1042'), findsOneWidget);
+    expect(find.text('Lo que más pides'), findsOneWidget);
+    // Solo se volvió a pedir el resumen.
+    expect(catalogo.cargas, cargas);
+  });
+
+  testWidgets('si falla el catálogo el error es de toda la pantalla', (
     tester,
   ) async {
     catalogo.error = Exception('sin red');
     await montar(tester);
 
     expect(find.text('Reintentar'), findsOneWidget);
+    expect(find.text('Categorías'), findsNothing);
+    expect(find.text('Comprado este mes'), findsNothing);
+    expect(find.byType(TarjetaProducto), findsNothing);
 
     catalogo.error = null;
     await tester.tap(find.text('Reintentar'));

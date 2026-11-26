@@ -175,6 +175,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
+    expect(find.text('Pisco del Sur'), findsOneWidget);
     expect(find.text('#1042'), findsNothing);
     expect(find.text('Comprado este mes'), findsNothing);
 

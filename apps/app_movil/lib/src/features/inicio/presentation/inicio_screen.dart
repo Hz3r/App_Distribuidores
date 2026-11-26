@@ -112,28 +112,23 @@ class _InicioScreenState extends ConsumerState<InicioScreen> {
     );
   }
 
-  /// Resumen, categorías y productos; o cargando, o el error.
+  /// Resumen, categorías y productos. Sin el catálogo: cargando o el error
+  /// de toda la pantalla. Sin el resumen (cargando o con error), el catálogo
+  /// se ve igual y el estado del resumen queda en lugar de sus tarjetas.
   List<Widget> _contenido() {
     final (lectura: lecturaCatalogo, :catalogo) = observarCatalogo(ref);
     final (lectura: lecturaResumen, :resumen) = observarResumen(ref);
 
-    if (catalogo == null || resumen == null) {
-      final cargando =
-          (catalogo == null && !lecturaCatalogo.mostrarError) ||
-          (resumen == null && !lecturaResumen.mostrarError);
-      if (cargando) {
-        return const [
-          Padding(
-            padding: EdgeInsets.symmetric(vertical: 48),
-            child: Center(child: CircularProgressIndicator()),
-          ),
-        ];
+    if (catalogo == null) {
+      if (!lecturaCatalogo.mostrarError) {
+        return const [_Cargando(alto: 48)];
       }
       return [
         _Margen(
           child: _ErrorInicio(
+            mensaje: 'No pudimos cargar el inicio.',
             alReintentar: () {
-              if (catalogo == null) ref.invalidate(catalogoProvider);
+              ref.invalidate(catalogoProvider);
               if (resumen == null) ref.invalidate(resumenComprasProvider);
             },
           ),
@@ -141,21 +136,37 @@ class _InicioScreenState extends ConsumerState<InicioScreen> {
       ];
     }
 
+    final Widget zonaResumen;
+    if (resumen != null) {
+      zonaResumen = _Margen(
+        child: _TarjetasResumen(
+          resumen: resumen,
+          alTocarUltimo: () => context.go(AppRutas.pedidos),
+        ),
+      );
+    } else if (lecturaResumen.mostrarError) {
+      zonaResumen = _Margen(
+        child: _ErrorInicio(
+          mensaje: 'No pudimos cargar tu resumen.',
+          alReintentar: () => ref.invalidate(resumenComprasProvider),
+        ),
+      );
+    } else {
+      zonaResumen = const _Cargando(alto: 24);
+    }
+
     final todos = productosDelCatalogo(catalogo);
-    final masPedidos = productosEnOrden(todos, resumen.productosMasPedidos);
-    // Sin historial (o si nada de lo pedido sigue en el catálogo), los
-    // primeros del catálogo.
+    final masPedidos = resumen == null
+        ? const <ProductoEnCatalogo>[]
+        : productosEnOrden(todos, resumen.productosMasPedidos);
+    // Sin historial (o si nada de lo pedido sigue en el catálogo, o sin el
+    // resumen), los primeros del catálogo.
     final (titulo, productos) = masPedidos.isEmpty
         ? ('Productos', todos.take(maxProductosMasPedidos).toList())
         : ('Lo que más pides', masPedidos);
 
     return [
-      _Margen(
-        child: _TarjetasResumen(
-          resumen: resumen,
-          alTocarUltimo: () => context.go(AppRutas.pedidos),
-        ),
-      ),
+      zonaResumen,
       if (catalogo.categorias.isNotEmpty) ...[
         const SizedBox(height: 20),
         _Margen(
@@ -577,10 +588,24 @@ class _FilaProductos extends StatelessWidget {
   }
 }
 
-/// Error al cargar el inicio, con "Reintentar".
-class _ErrorInicio extends StatelessWidget {
-  const _ErrorInicio({required this.alReintentar});
+/// Indicador de carga centrado, con [alto] de margen arriba y abajo.
+class _Cargando extends StatelessWidget {
+  const _Cargando({required this.alto});
 
+  final double alto;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.symmetric(vertical: alto),
+    child: const Center(child: CircularProgressIndicator()),
+  );
+}
+
+/// Error al cargar el inicio o su resumen: [mensaje] y "Reintentar".
+class _ErrorInicio extends StatelessWidget {
+  const _ErrorInicio({required this.mensaje, required this.alReintentar});
+
+  final String mensaje;
   final VoidCallback alReintentar;
 
   @override
@@ -596,7 +621,7 @@ class _ErrorInicio extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'No pudimos cargar tu resumen.',
+            mensaje,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyLarge,
           ),

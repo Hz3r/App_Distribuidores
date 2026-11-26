@@ -3,15 +3,19 @@ import 'package:app_movil/src/config/rutas.dart';
 import 'package:app_movil/src/features/catalogo/domain/catalogo.dart';
 import 'package:app_movil/src/features/catalogo/domain/catalogo_repositorio.dart';
 import 'package:app_movil/src/features/catalogo/presentation/catalogo_providers.dart';
+import 'package:app_movil/src/features/inicio/domain/pedidos_resumen_repositorio.dart';
+import 'package:app_movil/src/features/inicio/presentation/inicio_providers.dart';
 import 'package:app_movil/src/features/sesion/domain/acceso.dart';
 import 'package:app_movil/src/features/sesion/presentation/control_acceso.dart';
 import 'package:app_movil/src/router/app_router.dart';
+import 'package:core/core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:material_ui/material_ui.dart';
 
+import '../inicio/fabricas_pedidos.dart';
 import '../registro/dobles.dart';
 import 'fabricas.dart';
 
@@ -109,13 +113,34 @@ Catalogo catalogoDePrueba() => Catalogo(
   preciosLista: const {},
 );
 
+/// Membresía de las pruebas de pantalla: la bodega "Bodega Don Pepe" del
+/// distribuidor "Licores del Norte" (d1).
+Membresia bodegaDePrueba() => membresia('d1').copyWith(
+  clienteNegocioId: 'cn-d1',
+  clienteNegocio: ClienteNegocio(
+    id: 'cn-d1',
+    distribuidorId: 'd1',
+    nombreNegocio: 'Bodega Don Pepe',
+    activo: true,
+    creadoEn: DateTime.utc(2026),
+    creditoHabilitado: false,
+  ),
+  distribuidor: membresia('d1').distribuidor!
+      .copyWith(configTema: const ConfigTema(nombre: 'Licores del Norte')),
+);
+
+/// "Ahora" de las pruebas de pantalla: 26 de noviembre de 2026, 15:00 UTC.
+final ahoraDePrueba = DateTime.utc(2026, 11, 26, 15);
+
 /// Monta la app completa (router, barra y avisos reales) con una bodega
-/// activa y [repositorio], y navega a [ubicacion], en un teléfono de [ancho]
-/// puntos lógicos. Sin reintentos
-/// automáticos de Riverpod, para que un error quede a la vista.
+/// activa, [repositorio] y [pedidos] (sin pedidos si no se da), con el reloj
+/// en [ahoraDePrueba], y navega a [ubicacion], en un teléfono de [ancho]
+/// puntos lógicos. Sin reintentos automáticos de Riverpod, para que un error
+/// quede a la vista.
 Future<({GoRouter router, ProviderContainer container})> montarCliente(
   WidgetTester tester, {
   required CatalogoRepositorio repositorio,
+  PedidosResumenRepositorio? pedidos,
   String ubicacion = AppRutas.catalogo,
   double ancho = 390,
 }) async {
@@ -123,7 +148,7 @@ Future<({GoRouter router, ProviderContainer container})> montarCliente(
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
 
-  final bodega = membresia('d1');
+  final bodega = bodegaDePrueba();
   final container = ProviderContainer(
     retry: (_, _) => null,
     overrides: [
@@ -132,6 +157,10 @@ Future<({GoRouter router, ProviderContainer container})> montarCliente(
             ControlAccesoFalso(ConAcceso(membresias: [bodega], activa: bodega)),
       ),
       catalogoRepositorioProvider.overrideWithValue(repositorio),
+      pedidosResumenRepositorioProvider.overrideWithValue(
+        pedidos ?? PedidosResumenRepositorioFijo(),
+      ),
+      relojProvider.overrideWithValue(() => ahoraDePrueba),
     ],
   );
   addTearDown(container.dispose);

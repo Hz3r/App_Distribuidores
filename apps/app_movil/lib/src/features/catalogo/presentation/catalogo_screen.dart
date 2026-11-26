@@ -72,12 +72,14 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen> {
   @override
   Widget build(BuildContext context) {
     // El campo sigue a los filtros cuando cambian desde fuera ("Quitar
-    // filtros", el inicio).
+    // filtros", el inicio). Una búsqueda puesta desde el inicio abre el
+    // buscador aunque esta pantalla ya existiera con él cerrado.
     ref.listen(filtrosCatalogoActualesProvider.select((f) => f.busqueda), (
       _,
       busqueda,
     ) {
       if (_busqueda.text != busqueda) _busqueda.text = busqueda;
+      if (busqueda.isNotEmpty && !_buscando) setState(() => _buscando = true);
     });
 
     return Scaffold(

@@ -15,13 +15,13 @@ import '../features/registro/presentation/bienvenida_screen.dart';
 import '../features/registro/presentation/codigo_screen.dart';
 import '../features/registro/presentation/registro_screen.dart';
 import '../features/registro/presentation/revisa_correo_screen.dart';
+import '../features/inicio/presentation/inicio_screen.dart';
 import '../features/pedidos/presentation/pedidos_screen.dart';
 import '../features/repartidor/presentation/repartidor_screen.dart';
 import '../features/seleccion_distribuidor/presentation/seleccion_distribuidor_screen.dart';
 import '../features/sesion/presentation/cargando_screen.dart';
 import '../features/sesion/presentation/control_acceso.dart';
 import '../features/sesion/presentation/error_acceso_screen.dart';
-import '../shared/widgets/pantalla_placeholder.dart';
 import '../shared/widgets/sin_rol_screen.dart';
 import 'destino.dart';
 import 'estructura_cliente.dart';
@@ -107,10 +107,7 @@ GoRouter appRouter(Ref ref) {
             routes: [
               GoRoute(
                 path: AppRutas.inicio,
-                builder: (_, _) => const PantallaPlaceholder(
-                  titulo: 'Inicio',
-                  descripcion: 'Resumen de tu negocio. Pendiente.',
-                ),
+                builder: (_, _) => const InicioScreen(),
               ),
             ],
           ),

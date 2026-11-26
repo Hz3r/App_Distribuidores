@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:app_movil/app.dart';
+import 'package:app_movil/src/features/catalogo/domain/catalogo.dart';
+import 'package:app_movil/src/features/catalogo/presentation/catalogo_providers.dart';
+import 'package:app_movil/src/features/inicio/presentation/inicio_providers.dart';
 import 'package:app_movil/src/features/registro/domain/cuentas_repositorio.dart';
 import 'package:app_movil/src/features/registro/domain/datos_registro.dart';
 import 'package:app_movil/src/features/registro/domain/invitaciones_repositorio.dart';
@@ -16,6 +19,9 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+
+import '../catalogo/montar_cliente.dart' show CatalogoRepositorioFijo;
+import '../inicio/fabricas_pedidos.dart';
 
 /// Doble de [InvitacionesRepositorio]: registra las llamadas. Por defecto
 /// responde al instante; con [pendientes] o [canjePendiente] la respuesta
@@ -213,7 +219,8 @@ class ControlAccesoFalso extends ControlAcceso {
 /// Monta la app completa (router y tema reales) con los dobles, en un
 /// tamaño de teléfono. Devuelve el router para navegar desde la prueba.
 /// [overrides] agrega otros reemplazos (por ejemplo, la sesión y las
-/// membresías para usar el control de acceso real).
+/// membresías para usar el control de acceso real). El catálogo y los
+/// pedidos del inicio salen vacíos de dobles, para no tocar Supabase.
 Future<GoRouter> montarApp(
   WidgetTester tester, {
   required ControlAcceso control,
@@ -233,6 +240,14 @@ Future<GoRouter> montarApp(
       ),
       cuentasRepositorioProvider.overrideWithValue(
         cuentas ?? CuentasRepositorioDoble(),
+      ),
+      catalogoRepositorioProvider.overrideWithValue(
+        CatalogoRepositorioFijo(
+          const Catalogo(categorias: [], productos: [], preciosLista: {}),
+        ),
+      ),
+      pedidosResumenRepositorioProvider.overrideWithValue(
+        PedidosResumenRepositorioFijo(),
       ),
       ...overrides,
     ],

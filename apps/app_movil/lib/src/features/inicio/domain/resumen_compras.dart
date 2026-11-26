@@ -77,8 +77,8 @@ DateTime desdeParaResumen({
 }
 
 /// Resume [pedidos] (los recientes, ver [desdeParaResumen]) de la bodega
-/// [clienteId] en [distribuidorId]. [ultimoPedido] se lee aparte y sin límite de fecha: puede ser más viejo
-/// que todos los de [pedidos].
+/// [clienteId] en [distribuidorId]. [ultimoPedido] se lee aparte y sin
+/// límite de fecha: puede ser más viejo que todos los de [pedidos].
 ///
 /// [ahora] se pasa como parámetro para poder probar; los meses se cuentan
 /// en la zona horaria [desfaseZona] del distribuidor (America/Lima = UTC−5).

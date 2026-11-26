@@ -759,7 +759,13 @@ Estado de cada app:
     con `select('*, presentaciones(*, precios_volumen(*))')` (`activo = true`) y, si es
     cliente, `precios_lista` sin filtrar por lista (la RLS deja solo la vigente y activa de su
     bodega); todo filtrado por `distribuidor_id`. El precio y la disponibilidad que se muestran
-    siguen las reglas de `crear_pedido`, que los vuelve a calcular.
+    siguen las reglas de `crear_pedido`, que los vuelve a calcular. **El catálogo queda en
+    memoria durante la sesión**: solo se vuelve a leer al deslizar hacia abajo, al tocar
+    "Reintentar" o al cambiar de distribuidor o de cuenta (mientras llega el nuevo no se
+    muestra el anterior). Entretanto, la BD puede cambiar precios, listas y stock, así que lo
+    que se ve puede estar desactualizado. **La pantalla de checkout deberá volver a validar
+    disponibilidad y precios** antes de confirmar; la que decide es la BD (`crear_pedido`, con
+    bloqueo de fila), nunca el catálogo en memoria.
   - **Inicio:** `pedidos` con `select('*, items:pedido_items(*)')`, filtrando por
     `distribuidor_id`, `cliente_id` (el `cliente_negocio_id` de la membresía activa; la RLS ya
     limita a los de su bodega) y `creado_en >=` 90 días atrás o el inicio del mes anterior, lo

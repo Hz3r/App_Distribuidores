@@ -25,13 +25,17 @@ final class ErrorAcceso extends Acceso {
 
 /// Membresías leídas. Puede no haber ninguna útil.
 final class ConAcceso extends Acceso {
-  const ConAcceso({required this.membresias, required this.activa});
+  const ConAcceso({required this.membresias, required this.activa, this.aviso});
 
   /// Solo las membresías útiles para la app móvil.
   final List<Membresia> membresias;
 
   /// `null` si hay varias y aún no se eligió.
   final Membresia? activa;
+
+  /// Algo que la persona debe saber de esta carga (por ejemplo, que el
+  /// código de su registro no se pudo vincular). `null` si no hay nada.
+  final String? aviso;
 }
 
 /// Roles que entran en la app móvil. `admin` y `vendedor` usan el panel web.
@@ -57,10 +61,15 @@ Membresia? elegirActiva(List<Membresia> utiles, String? distribuidorPreferido) {
 }
 
 /// Arma el acceso a partir de todas las membresías de la persona.
-ConAcceso accesoDesde(List<Membresia> todas, String? distribuidorPreferido) {
+ConAcceso accesoDesde(
+  List<Membresia> todas,
+  String? distribuidorPreferido, {
+  String? aviso,
+}) {
   final utiles = membresiasUtiles(todas);
   return ConAcceso(
     membresias: utiles,
     activa: elegirActiva(utiles, distribuidorPreferido),
+    aviso: aviso,
   );
 }

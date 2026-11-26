@@ -28,6 +28,10 @@ Membresia membresia(String distribuidorId, RolMembresia rol) {
 
 /// Todas las rutas de [AppRutas].
 const todasLasRutas = [
+  AppRutas.bienvenida,
+  AppRutas.codigo,
+  AppRutas.registro,
+  AppRutas.revisaCorreo,
   AppRutas.auth,
   AppRutas.cargando,
   AppRutas.errorAcceso,
@@ -39,6 +43,15 @@ const todasLasRutas = [
   AppRutas.pedidos,
   AppRutas.perfil,
   AppRutas.repartidor,
+];
+
+/// Rutas válidas sin sesión.
+const rutasPublicas = [
+  AppRutas.bienvenida,
+  AppRutas.codigo,
+  AppRutas.registro,
+  AppRutas.revisaCorreo,
+  AppRutas.auth,
 ];
 
 void main() {
@@ -56,9 +69,22 @@ void main() {
       destinoRedireccion(acceso: acceso, ubicacion: ubicacion);
 
   group('destinoRedireccion, una prueba por regla', () {
-    test('sin sesión manda a auth, salvo que ya esté ahí', () {
-      expect(destino(const SinSesion(), AppRutas.catalogo), AppRutas.auth);
-      expect(destino(const SinSesion(), AppRutas.auth), isNull);
+    test('sin sesión, las rutas públicas son válidas', () {
+      for (final ubicacion in rutasPublicas) {
+        expect(
+          destino(const SinSesion(), ubicacion),
+          isNull,
+          reason: 'sin sesión en $ubicacion',
+        );
+      }
+    });
+
+    test('sin sesión, cualquier otra ruta manda a bienvenida', () {
+      expect(
+        destino(const SinSesion(), AppRutas.catalogo),
+        AppRutas.bienvenida,
+      );
+      expect(destino(const SinSesion(), AppRutas.sinRol), AppRutas.bienvenida);
     });
 
     test('cargando manda a cargando, salvo que ya esté ahí', () {
@@ -78,6 +104,11 @@ void main() {
       expect(destino(vacio, AppRutas.sinRol), isNull);
     });
 
+    test('con acceso y sin membresías, codigo se permite', () {
+      const vacio = ConAcceso(membresias: [], activa: null);
+      expect(destino(vacio, AppRutas.codigo), isNull);
+    });
+
     test('sin activa manda a seleccionDistribuidor, salvo que ya esté', () {
       final sinElegir = ConAcceso(
         membresias: [cliente, repartidor],
@@ -90,9 +121,19 @@ void main() {
       expect(destino(sinElegir, AppRutas.seleccionDistribuidor), isNull);
     });
 
-    test('con activa, desde auth, cargando, errorAcceso o sinRol va al '
-        'inicio del rol', () {
+    test('sin activa, codigo se permite para sumar otro distribuidor', () {
+      final sinElegir = ConAcceso(
+        membresias: [cliente, repartidor],
+        activa: null,
+      );
+      expect(destino(sinElegir, AppRutas.codigo), isNull);
+    });
+
+    test('con activa, desde las rutas de paso va al inicio del rol', () {
       for (final ubicacion in [
+        AppRutas.bienvenida,
+        AppRutas.registro,
+        AppRutas.revisaCorreo,
         AppRutas.auth,
         AppRutas.cargando,
         AppRutas.errorAcceso,
@@ -109,6 +150,12 @@ void main() {
           reason: 'repartidor en $ubicacion',
         );
       }
+    });
+
+    test('con activa, codigo se permite para sumar otro distribuidor', () {
+      expect(destino(soloCon(cliente), AppRutas.codigo), isNull);
+      expect(destino(soloCon(repartidor), AppRutas.codigo), isNull);
+      expect(destino(dosCon(cliente), AppRutas.codigo), isNull);
     });
 
     test(

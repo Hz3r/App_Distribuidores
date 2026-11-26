@@ -15,7 +15,7 @@ String? destinoRedireccion({
   final ConAcceso conAcceso;
   switch (acceso) {
     case SinSesion():
-      return _salvoQueYaEste(AppRutas.auth, ubicacion);
+      return _rutasSinSesion.contains(ubicacion) ? null : AppRutas.bienvenida;
     case Cargando():
       return _salvoQueYaEste(AppRutas.cargando, ubicacion);
     case ErrorAcceso():
@@ -23,6 +23,10 @@ String? destinoRedireccion({
     case ConAcceso():
       conAcceso = acceso;
   }
+
+  // Con sesión se puede canjear un código para sumar un distribuidor, sea
+  // cual sea el rol, sin membresías o sin una elegida todavía.
+  if (ubicacion == AppRutas.codigo) return null;
 
   final membresias = conAcceso.membresias;
   if (membresias.isEmpty) {
@@ -55,9 +59,22 @@ String? destinoRedireccion({
   return null;
 }
 
+/// Rutas válidas sin sesión. Cualquier otra lleva a la bienvenida.
+const _rutasSinSesion = {
+  AppRutas.bienvenida,
+  AppRutas.codigo,
+  AppRutas.registro,
+  AppRutas.revisaCorreo,
+  AppRutas.auth,
+};
+
 /// Rutas que no tienen sentido con una membresía activa: se sale de ellas
-/// al inicio del rol.
+/// al inicio del rol. `codigo` no está: con sesión sirve para sumar otro
+/// distribuidor.
 const _rutasDePaso = {
+  AppRutas.bienvenida,
+  AppRutas.registro,
+  AppRutas.revisaCorreo,
   AppRutas.auth,
   AppRutas.cargando,
   AppRutas.errorAcceso,

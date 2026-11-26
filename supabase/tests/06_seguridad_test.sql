@@ -45,12 +45,21 @@ select pg_temp.sin_ofensores($q$
              and has_any_column_privilege('anon', c.oid, priv)))
 $q$, '6.2 anon sin privilegios (de tabla ni de columna, ni vía PUBLIC) sobre tablas de public');
 
-select pg_temp.sin_ofensores($q$
+-- 6.3: el conjunto de funciones de public y privado que anon puede ejecutar
+-- es exactamente {public.consultar_invitacion(text)} (la consulta del código
+-- antes de tener cuenta, migración 7). Sin la migración 7 (run.sh 6) el
+-- conjunto esperado es vacío. Cualquier otra función, o que falte esa, falla.
+select pg_temp.lista($q$
   select n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')'
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname in ('public', 'privado') and p.prokind in ('f', 'p')
     and has_function_privilege('anon', p.oid, 'EXECUTE')
-$q$, '6.3 anon no puede ejecutar funciones de public ni privado');
+$q$) as anon_ejecuta \gset
+select case when to_regprocedure('public.consultar_invitacion(text)') is null then '-'
+            else 'public.consultar_invitacion(p_codigo text)' end as anon_esperado \gset
+select pruebas.afirma(:'anon_ejecuta' = :'anon_esperado',
+  '6.3 anon solo puede ejecutar public.consultar_invitacion(text) (obtenido: '
+  || :'anon_ejecuta' || '; esperado: ' || :'anon_esperado' || ')');
 
 select pg_temp.sin_ofensores($q$
   select n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')'

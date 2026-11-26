@@ -3,11 +3,17 @@ import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../config/rutas.dart';
-import '../features/auth/presentation/auth_screen.dart';
+import '../features/auth/presentation/ingreso_screen.dart';
 import '../features/carrito/presentation/carrito_screen.dart';
 import '../features/catalogo/presentation/catalogo_screen.dart';
 import '../features/checkout/presentation/checkout_screen.dart';
 import '../features/perfil/presentation/perfil_screen.dart';
+import '../features/registro/domain/argumentos_registro.dart';
+import '../features/registro/domain/codigo_por_canjear.dart';
+import '../features/registro/presentation/bienvenida_screen.dart';
+import '../features/registro/presentation/codigo_screen.dart';
+import '../features/registro/presentation/registro_screen.dart';
+import '../features/registro/presentation/revisa_correo_screen.dart';
 import '../features/pedidos/presentation/pedidos_screen.dart';
 import '../features/repartidor/presentation/repartidor_screen.dart';
 import '../features/seleccion_distribuidor/presentation/seleccion_distribuidor_screen.dart';
@@ -32,7 +38,7 @@ GoRouter appRouter(Ref ref) {
   ref.listen(controlAccesoProvider, (_, _) => refresco.avisar());
 
   final router = GoRouter(
-    initialLocation: AppRutas.auth,
+    initialLocation: AppRutas.bienvenida,
     refreshListenable: refresco,
     redirect: (context, state) {
       return destinoRedireccion(
@@ -41,7 +47,35 @@ GoRouter appRouter(Ref ref) {
       );
     },
     routes: [
-      GoRoute(path: AppRutas.auth, builder: (_, _) => const AuthScreen()),
+      GoRoute(
+        path: AppRutas.bienvenida,
+        builder: (_, _) => const BienvenidaScreen(),
+      ),
+      GoRoute(path: AppRutas.codigo, builder: (_, _) => const CodigoScreen()),
+      GoRoute(
+        path: AppRutas.registro,
+        // Sin el código validado no hay nada que registrar.
+        redirect: (_, state) =>
+            state.extra is ArgumentosRegistro ? null : AppRutas.codigo,
+        builder: (_, state) =>
+            RegistroScreen(argumentos: state.extra! as ArgumentosRegistro),
+      ),
+      GoRoute(
+        path: AppRutas.revisaCorreo,
+        // Recibe el correo por `extra`; sin él, la pantalla dice "tu correo".
+        builder: (_, state) => RevisaCorreoScreen(
+          correo: state.extra is String ? state.extra! as String : null,
+        ),
+      ),
+      GoRoute(
+        path: AppRutas.auth,
+        // Desde el registro recibe el código por canjear al ingresar.
+        builder: (_, state) => IngresoScreen(
+          codigoPorCanjear: state.extra is CodigoPorCanjear
+              ? state.extra! as CodigoPorCanjear
+              : null,
+        ),
+      ),
       GoRoute(
         path: AppRutas.cargando,
         builder: (_, _) => const CargandoScreen(),

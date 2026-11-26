@@ -25,7 +25,7 @@ y este documento se corrige.
 | Marcas de tiempo | Toda tabla tiene `creado_en`. Las editables tienen `actualizado_en`, mantenido por el trigger `privado.tg_actualizado_en()`. |
 | Esquemas | `public`: tablas y funciones que la app llama (Data API). `privado`: funciones auxiliares, **no** expuesto; `authenticated` solo tiene `usage`, `anon` nada. |
 | Escritura | Lo que mueve stock, pedidos, pagos, membresías, invitaciones y la plataforma se escribe **solo con funciones** (`supabase.rpc(...)`). La app no hace `insert`/`update` sobre esas tablas. |
-| Permisos | Cada migración revoca todo a `anon` y `authenticated` y otorga solo lo de la matriz (sección 2). `anon` no tiene acceso a ninguna tabla ni función. |
+| Permisos | Cada migración revoca todo a `anon` y `authenticated` y otorga solo lo de la matriz (sección 2). `anon` no tiene acceso a ninguna tabla ni función, **salvo una excepción**: puede ejecutar `consultar_invitacion` (sección 3), para validar el código antes de tener cuenta. |
 | Distribuidor activo | La app guarda cuál distribuidor está seleccionado y lo manda como filtro o parámetro (`distribuidor_id`). La BD nunca confía en ese valor: siempre verifica la membresía. |
 | Cambios de esquema | Solo con una migración nueva en `supabase/migrations/`. Nunca se edita una migración ya aplicada. |
 
@@ -43,6 +43,7 @@ Migraciones, en orden (cada una pasa sus pruebas sin las siguientes):
 | 4 | `supabase/migrations/20261122130000_cobros.sql` | Pagos de pedidos |
 | 5 | `supabase/migrations/20261122140000_plataforma.sql` | Planes, suscripciones, alta de distribuidores |
 | 6 | `supabase/migrations/20261122150000_ajustes_post_revision.sql` | Ajustes tras la revisión: catálogo visible para cliente y repartidor, `crear_pedido` rechaza categorías inactivas, `execute` de `public.rls_auto_enable()` |
+| 7 | `supabase/migrations/20261125100000_registro_por_invitacion.sql` | Registro por invitación: `intentos_consulta`, `consultar_invitacion` (sin sesión), `completar_datos_negocio`. Aún no aplicada en DEV |
 
 ### Tipos (enums)
 
@@ -78,6 +79,7 @@ Todas tienen `creado_en` y, salvo `contadores_pedido` (su pk es `distribuidor_id
 | `membresias` ✎ | Vínculo persona–distribuidor | `perfil_id`, `distribuidor_id`, `rol`, `estado` (def. `activa`), `cliente_negocio_id?` |
 | `invitaciones` ✎ | Código de un solo uso | `distribuidor_id`, `codigo` (único en la plataforma), `rol`, `cliente_negocio_id?`, `creada_por?`, `vence_en`, `usada_por?`, `usada_en?`, `revocada_en?` |
 | `intentos_canje` | Freno a quien adivina códigos | `perfil_id`, `exitoso` |
+| `intentos_consulta` | Freno, por dirección de red, a quien consulta códigos sin sesión (migración 7). Sin `distribuidor_id`: el código consultado puede no existir | `direccion_red` (ver `consultar_invitacion`, máx. 64 caracteres), `exitoso`. Cada consulta borra los de su dirección con más de 1 día |
 | `dispositivos_push` ✎ | Token de notificaciones | `perfil_id`, `token` (único), `plataforma` (`android`, `ios` o `web`) |
 
 Reglas:
@@ -244,7 +246,7 @@ las funciones de la sección 3.
 | `perfiles` | lee el suyo y los de las personas con membresía en su distribuidor | igual que admin | igual que admin | lee el suyo y el del repartidor asignado a sus pedidos | lee todos |
 | (todos) `perfiles` | cada persona edita solo su `nombre` | | | | |
 | `membresias` | lee todas; estado, rol y bodega por funciones | lee todas | lee la suya | lee la suya | lee todas |
-| `clientes_negocio` | lee, crea y edita (con lista y crédito); sin `delete` | lee, crea y edita, sin lista ni crédito | lee las de sus pedidos asignados | lee la suya | lee todas |
+| `clientes_negocio` | lee, crea y edita (con lista y crédito); sin `delete` | lee, crea y edita, sin lista ni crédito | lee las de sus pedidos asignados | lee la suya; completa documento, dirección, referencia y teléfono con `completar_datos_negocio` | lee todas |
 | `invitaciones` | lee todas; crea y revoca por funciones | lee, crea y revoca las de rol `cliente` | no | no | lee todas; crea y revoca en cualquiera |
 | `categorias`, `productos`, `presentaciones` | lee todo; crea y edita por columnas (sin stock, sin `delete`) | lee todo | lee solo lo visible (sección 2, catálogo) | lee solo lo visible (sección 2, catálogo) | lee todo |
 | `precios_volumen` | lee; crea, edita y borra | lee | lee los de presentaciones visibles | lee los de presentaciones visibles | lee |
@@ -256,7 +258,7 @@ las funciones de la sección 3.
 | `suscripciones`, `pagos_suscripcion` | lee las suyas | no | no | no | lee todas; escribe por funciones |
 | `planes` | lee | lee | lee | lee | lee, crea y edita |
 | `dispositivos_push` | cada persona lee y borra solo los suyos; registra con `registrar_dispositivo` | | | | |
-| `intentos_canje`, `contadores_pedido` | sin acceso para nadie | | | | |
+| `intentos_canje`, `intentos_consulta`, `contadores_pedido` | sin acceso para nadie | | | | |
 | Storage `catalogo` | sube, reemplaza y borra en `<su distribuidor_id>/` | lectura pública por URL | | | |
 
 Grants por columna (lo que la API acepta en `insert` / `update`; lo demás falla con `42501`):
@@ -283,6 +285,7 @@ permite no da error: no cambia ninguna fila.
 
 Todas son `security definer`, verifican `auth.uid()` y la membresía en su cuerpo, y solo las
 ejecuta `authenticated` (`anon` recibe `permission denied`). Sin sesión, todas lanzan `42501`.
+**Única excepción:** `consultar_invitacion`, que también ejecuta `anon` y funciona sin sesión.
 Los parámetros con valor por defecto van al final: **la app los pasa por nombre**
 (`supabase.rpc('crear_pedido', params: {...})`).
 
@@ -297,7 +300,7 @@ Los parámetros con valor por defecto van al final: **la app los pasa por nombre
 | `P0002` | No existe, o quien llama no puede verlo (pedido, pago, presentación, suscripción, distribuidor) |
 | `P0003` | Distribuidor que no está en `prueba` ni `activo`, o bodega inactiva en un pedido que admin o vendedor crean a su nombre (un cliente con la bodega inactiva recibe `42501`: su membresía ya no cuenta) |
 | `P0004` | Crédito no habilitado, límite excedido o deuda vencida |
-| `P0005` | Demasiados intentos de canje (solo `canjear_invitacion`) |
+| `P0005` | Demasiados intentos: de canje en `canjear_invitacion` (por cuenta) o de consulta en `consultar_invitacion` (por dirección de red). Solo esas dos |
 | `P0006` | Operación no válida para el estado actual: transición de pedido inválida, pago sobre pedido cancelado, pago ya anulado, cancelar con pagos activos, revocar una invitación usada, dejar a un distribuidor sin admin activo, pagar una suscripción cancelada o que dejaría dos vigentes |
 
 > **Ojo con `P0004`:** coincide con el SQLSTATE de `assert_failure` de PL/pgSQL. Un bloque
@@ -329,6 +332,48 @@ Los mensajes están en español y pueden cambiar; la app decide por el código, 
 - Freno: con 5 intentos fallidos en 15 minutos, la cuenta queda frenada hasta que salga de la
   ventana. Los canjes de una misma cuenta se serializan.
 - Errores: solo `42501` (sin sesión) y `P0005` (frenada).
+
+**`consultar_invitacion(p_codigo text) returns jsonb`**
+- Quién: **cualquiera, también sin sesión** (`anon` y `authenticated`). Es la única función del
+  esquema que ejecuta `anon`. Normaliza el código (`upper(trim(...))`). No lo canjea.
+- Si el código es canjeable (mismas condiciones que `canjear_invitacion`) devuelve:
+
+  ```json
+  {
+    "distribuidor_id": "<uuid>",
+    "distribuidor_nombre": "<config_tema.nombre si no está vacío; si no, distribuidores.nombre>",
+    "rol": "cliente",
+    "negocio": {
+      "nombre_negocio": "...", "documento": null, "direccion": "...",
+      "referencia": null, "telefono": null
+    }
+  }
+  ```
+
+  `negocio` es `null` si la invitación no es de rol `cliente`.
+- **Si no sirve devuelve `null`, sin error**: inexistente, usado, revocado, vencido o de bodega
+  inactiva. Los cinco casos son indistinguibles. No mira si quien llama ya es miembro.
+- Freno por dirección de red. La dirección sale de las cabeceras de la petición, en este orden:
+  1. `cf-connecting-ip`, si no está vacía tras `trim` (la fija el borde de Cloudflare, delante de
+     Supabase, y sobreescribe la que mande el cliente);
+  2. si no, el **último** elemento de `x-forwarded-for`, con `trim` (el que agrega el proxy de
+     confianza; el primero lo elige el cliente y no se usa);
+  3. si no, `desconocida` (también si las cabeceras faltan o no son JSON).
+
+  Se trata como texto no confiable y se guarda cortada a 64 caracteres. Con 5 consultas fallidas
+  en 15 minutos desde esa dirección, las siguientes lanzan `P0005` (también con un código válido)
+  hasta que salgan de la ventana. Las consultas de una misma dirección se serializan, y cada una
+  borra los intentos de su dirección con más de 1 día.
+- Errores: solo `P0005` (frenada).
+
+**`completar_datos_negocio(p_distribuidor_id uuid, p_documento text default null, p_direccion text default null, p_referencia text default null, p_telefono text default null) returns void`**
+- Quién: cliente activo del distribuidor (persona con membresía `cliente` activa y bodega
+  activa). Actualiza **su** bodega en ese distribuidor.
+- Cada parámetro se limpia con `trim`; uno nulo o vacío no cambia su columna. `documento` solo se
+  escribe si estaba nulo o vacío: si ya tiene valor se ignora, sin error.
+- Nunca toca `nombre_negocio`, `lista_precios_id`, las columnas de crédito ni `activo`.
+- Errores: `42501` sin sesión o si no es cliente activo de ese distribuidor; `22023` tras limpiar,
+  `documento` o `telefono` de más de 20 caracteres, o `direccion` o `referencia` de más de 200.
 
 **`cambiar_estado_membresia(p_membresia_id uuid, p_estado estado_membresia) returns void`**
 - Quién: admin del distribuidor de la membresía (cualquier rol, también clientes).
@@ -622,9 +667,8 @@ Tras iniciar sesión, la app:
    membresía de otra persona.
 2. Si hay varias, la persona elige el distribuidor; la app lo guarda como distribuidor activo.
 3. Redirige según el rol de esa membresía (`cliente`, `repartidor`, o `admin`/`vendedor` en el
-   panel). Sin membresías útiles, la app móvil muestra una pantalla sin acceso (con reintentar y
-   cerrar sesión), **sin opción de canje**: el canje de un código (`canjear_invitacion`) está
-   pendiente de construir en la app.
+   panel). Sin membresías útiles, la app móvil muestra una pantalla sin acceso (con reintentar,
+   "Tengo un código" para canjear uno y cerrar sesión).
 
 Una membresía de cliente cuya bodega está inactiva sigue en `estado = 'activa'` en `membresias`,
 pero **no cuenta**: el distribuidor, el catálogo y los pedidos dejan de ser visibles y
@@ -633,11 +677,77 @@ en catálogo o pedidos como "sin acceso a este distribuidor", no como un error g
 
 Estado de cada app:
 
-- **`app_movil`: ya lo implementa.** Lee las membresías de la persona con
+- **`app_movil`: ingreso y registro por invitación.** La app móvil ingresa con **correo y
+  contraseña** (`auth.signInWithPassword`), igual que el panel; no hay ingreso por SMS. Quien no
+  tiene cuenta entra con el código de su distribuidor:
+  1. Consulta el código sin sesión (`consultar_invitacion`) y ve a quién se une.
+  2. Completa el formulario: los datos de la bodega llegan como los cargó el distribuidor (el
+     nombre es de solo lectura; el RUC o DNI solo se escribe si venía vacío; celular y dirección
+     se pueden corregir). Las invitaciones de personal no muestran datos de bodega. El celular
+     acepta espacios, guiones, paréntesis y el prefijo `+51`, y se guarda normalizado (9 dígitos);
+     si el teléfono que puso el distribuidor no es un celular válido, el campo llega vacío. La
+     referencia no está en el formulario y viaja como `null` ("sin cambios").
+  3. Crea la cuenta con `auth.signUp(email, password, data: {...})`. En `data` van
+     **`nombre`** (el trigger lo copia a `perfiles.nombre`) y
+     **`registro_pendiente`**:
+
+     ```json
+     {
+       "registro_pendiente": {
+         "codigo": "AB2CD3E4",
+         "distribuidor_id": "<uuid de consultar_invitacion>",
+         "documento": null, "direccion": "...", "referencia": null, "telefono": "..."
+       }
+     }
+     ```
+
+     La contraseña solo va a `signUp`: nunca a `user_metadata` ni a los registros.
+  4. Si el proyecto exige confirmar el correo, `signUp` no da sesión y la app muestra "Revisa tu
+     correo"; la sesión llega al ingresar. Con confirmación, un correo ya registrado no da error:
+     Supabase devuelve un usuario sin `identities`, y la app lo trata como "ya existe".
+     - Si la persona se registra otra vez con el mismo correo **antes de confirmar**, Supabase
+       reenvía el correo de confirmación y **no aplica** la contraseña ni los datos nuevos
+       (`data`): valen los del primer registro. Es comportamiento de la plataforma, pendiente de
+       comprobar en DEV.
+     - `signUp` no pasa `emailRedirectTo`: el enlace de confirmación lleva a la URL del sitio
+       configurada en el proyecto de Supabase (Authentication → URL Configuration).
+  5. **En cuanto hay sesión** (al crear la cuenta o en cualquier ingreso posterior), antes de leer
+     las membresías, la app lee `user_metadata.registro_pendiente` y, si hay:
+     canjea el código (`canjear_invitacion`); si hay datos de bodega, llama
+     `completar_datos_negocio` con el `distribuidor_id` guardado **aunque el canje devuelva
+     `null`** (puede ser el reintento de un canje que el servidor ya confirmó; si no es cliente
+     ahí, la BD responde `42501`, que se registra y no impide entrar); y **limpia el pendiente
+     vincule o no** (`auth.updateUser(data: {registro_pendiente: null})`): un código que no
+     vincula no se reintenta. Si el canje devolvió `null` y, tras leer las membresías, no hay
+     ninguna útil en ese distribuidor, se avisa "No pudimos vincular tu código. Pide uno nuevo a
+     tu distribuidor." (en la pantalla sin acceso o, si entra a otra zona, como aviso
+     emergente). Si el canje no responde (red, `P0005`), el pendiente se conserva y se reintenta
+     en la siguiente carga. Si la sesión cambia mientras se canjea, no se completa ni se limpia, y
+     si la misma persona vuelve a ingresar cuando ese canje ya respondió, se vuelve a intentar
+     (si reingresa mientras el canje anterior sigue sin responder, se omite: caso muy raro, pendiente).
+  6. Con sesión, la pantalla de código canjea directamente (para sumar otro distribuidor). Se
+     llega a ella también con varias membresías y ninguna elegida.
+  7. **Canje al ingresar.** Si el registro responde "Ya existe una cuenta con este correo",
+     "Ingresar" lleva a la pantalla de ingreso con el código (y el `distribuidor_id` de la
+     invitación) por `extra` de go_router; nunca la contraseña. Antes de `signInWithPassword` el
+     control de acceso guarda ese código **solo en memoria**; si el ingreso no da sesión, lo
+     descarta (la pantalla lo conserva para el siguiente intento). En cuanto hay sesión, la carga
+     lo canjea **una vez** con `canjear_invitacion`, después del registro pendiente si lo hay y
+     antes de leer las membresías, aunque la pantalla de ingreso ya no esté montada. Es como un
+     registro pendiente sin datos de bodega: no llama `completar_datos_negocio` ni toca
+     `user_metadata`. Si el canje no responde, queda en la pantalla de error y "Reintentar" lo
+     vuelve a canjear; si se cierra la sesión, se descarta. Si devuelve `null` y no hay ninguna
+     membresía útil en ese distribuidor, se avisa "No pudimos vincular este código. Pide uno
+     nuevo a tu distribuidor." (en la pantalla sin acceso o, si entra a otra zona, como aviso
+     emergente).
+
+  `user_metadata.registro_pendiente` es solo de la app móvil y lo escribe la propia persona: la
+  BD sigue validando el código en `canjear_invitacion` y la bodega en `completar_datos_negocio`.
+- **`app_movil`: membresías.** Lee las membresías de la persona con
   `select('*, distribuidor:distribuidores(*), cliente_negocio:clientes_negocio(*)')` filtrando por
   `perfil_id`, y se queda con las **membresías útiles**: `estado = 'activa'`, rol `cliente` o
   `repartidor` (`admin` y `vendedor` usan el panel) y distribuidor visible. Ninguna → pantalla
-  "Sin acceso en la app" (reintentar y cerrar sesión); una → entra directo; varias → elige en
+  "Sin acceso en la app" (reintentar, "Tengo un código" y cerrar sesión); una → entra directo; varias → elige en
   `seleccion-distribuidor`. La preferencia se guarda en **`user_metadata.distribuidor_activo`**
   (`auth.updateUser`) y se usa si sigue entre las útiles. Es solo una preferencia: la BD valida la
   membresía en cada consulta. Mientras lee muestra una pantalla de espera; si falla, una de error
@@ -711,7 +821,8 @@ Termina con `TODO OK`. En CI corre en el job `sql` de `.github/workflows/ci.yml`
 | `04_concurrencia_pagos_test.sh` | Dos pagos simultáneos por el saldo completo; pago y cancelación simultáneos, en los dos órdenes |
 | `05_plataforma_test.sql` | Planes, suscripciones, alta y estado de distribuidores |
 | `06_ajustes_test.sql` | Catálogo visible para cliente y repartidor; `crear_pedido` con la categoría inactiva; `execute` de `public.rls_auto_enable()` si existe |
-| `06_seguridad_test.sql` | Barrido: RLS, grants, `search_path`, políticas, montos `bigint` |
+| `06_seguridad_test.sql` | Barrido: RLS, grants, `search_path`, políticas, montos `bigint`; `anon` ejecuta solo `consultar_invitacion` |
+| `07_registro_test.sql` | `consultar_invitacion` (datos, casos nulos, freno por dirección, orden de cabeceras y `x-forwarded-for` falsificado, cabecera ausente, limpieza de intentos viejos), `completar_datos_negocio` |
 
 ---
 

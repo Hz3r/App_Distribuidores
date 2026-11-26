@@ -283,27 +283,33 @@ class _PestanaMarcaState extends ConsumerState<PestanaMarca>
 
     return LayoutBuilder(
       builder: (context, limites) {
-        final amplia = limites.maxWidth >= 1000;
-        return SingleChildScrollView(
-          padding: const EdgeInsets.only(top: 20, bottom: 24),
-          child: amplia
-              ? Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Flexible(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 680),
-                        child: formulario,
-                      ),
-                    ),
-                    const SizedBox(width: 32),
-                    vista,
-                  ],
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [formulario, const SizedBox(height: 24), vista],
+        const relleno = EdgeInsets.only(top: 20, bottom: 24);
+        if (limites.maxWidth < 1000) {
+          return SingleChildScrollView(
+            padding: relleno,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [formulario, const SizedBox(height: 24), vista],
+            ),
+          );
+        }
+        // En pantallas anchas solo se desplaza el formulario: la vista
+        // previa queda a la vista mientras se eligen colores más abajo.
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Flexible(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 680),
+                child: SingleChildScrollView(
+                  padding: relleno,
+                  child: formulario,
                 ),
+              ),
+            ),
+            const SizedBox(width: 32),
+            SingleChildScrollView(padding: relleno, child: vista),
+          ],
         );
       },
     );
@@ -449,7 +455,7 @@ class _SelectorColor extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         SizedBox(
-          width: 220,
+          width: 260,
           child: TextFormField(
             controller: controller,
             enabled: !deshabilitado,

@@ -123,6 +123,16 @@ GoRouter appRouter(Ref ref) {
                     builder: (_, state) => DetalleProductoScreen(
                       productoId: state.pathParameters['id']!,
                     ),
+                    routes: [
+                      // El carrito encima del detalle: un `push` a la
+                      // pestaña del carrito no cabe (el detalle está fuera
+                      // de la barra), y un `go` descartaría el detalle.
+                      GoRoute(
+                        path: 'carrito',
+                        parentNavigatorKey: raiz,
+                        builder: (_, _) => const CarritoScreen(),
+                      ),
+                    ],
                   ),
                 ],
               ),

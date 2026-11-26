@@ -77,6 +77,11 @@ class BarraCliente extends StatelessWidget {
 
 /// Estructura de la zona de la bodega: la rama activa del router con la
 /// barra inferior. Un repartidor (que solo entra a perfil) la ve sin barra.
+///
+/// El botón atrás del sistema en una pestaña que no sea Inicio lleva a
+/// Inicio en vez de salir de la app (el carrito solo vive en memoria). En
+/// Inicio, o sin barra, sale como siempre. Lo que se abre encima (el
+/// detalle, o una pantalla dentro de una pestaña) se cierra antes.
 class EstructuraCliente extends ConsumerWidget {
   const EstructuraCliente({required this.navegacion, super.key});
 
@@ -87,18 +92,28 @@ class EstructuraCliente extends ConsumerWidget {
     final esCliente = ref.watch(
       membresiaActivaProvider.select((m) => m?.rol == RolMembresia.cliente),
     );
-    return Scaffold(
-      body: navegacion,
-      bottomNavigationBar: esCliente
-          ? BarraCliente(
-              indiceActual: navegacion.currentIndex,
-              // Tocar la pestaña activa vuelve a su pantalla inicial.
-              alElegir: (indice) => navegacion.goBranch(
-                indice,
-                initialLocation: indice == navegacion.currentIndex,
-              ),
-            )
-          : null,
+    final enInicio = navegacion.currentIndex == _indiceInicio;
+    return PopScope(
+      canPop: !esCliente || enInicio,
+      onPopInvokedWithResult: (salio, _) {
+        if (!salio) navegacion.goBranch(_indiceInicio);
+      },
+      child: Scaffold(
+        body: navegacion,
+        bottomNavigationBar: esCliente
+            ? BarraCliente(
+                indiceActual: navegacion.currentIndex,
+                // Tocar la pestaña activa vuelve a su pantalla inicial.
+                alElegir: (indice) => navegacion.goBranch(
+                  indice,
+                  initialLocation: indice == navegacion.currentIndex,
+                ),
+              )
+            : null,
+      ),
     );
   }
+
+  /// Rama de Inicio: la primera del router.
+  static const _indiceInicio = 0;
 }

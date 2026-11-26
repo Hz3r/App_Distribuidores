@@ -29,6 +29,9 @@ Membresia membresia(String distribuidorId, RolMembresia rol) {
 /// Una ruta de detalle de producto.
 final detalle = AppRutas.detalleProducto('p1');
 
+/// El carrito abierto desde ese detalle.
+final carritoDelDetalle = AppRutas.carritoDesdeDetalle('p1');
+
 /// Todas las rutas de [AppRutas].
 final todasLasRutas = [
   AppRutas.bienvenida,
@@ -43,6 +46,7 @@ final todasLasRutas = [
   AppRutas.inicio,
   AppRutas.catalogo,
   detalle,
+  carritoDelDetalle,
   AppRutas.carrito,
   AppRutas.checkout,
   AppRutas.pedidos,
@@ -231,6 +235,7 @@ void main() {
       expect(destino(soloCon(cliente), AppRutas.inicio), isNull);
       expect(destino(soloCon(cliente), AppRutas.catalogo), isNull);
       expect(destino(soloCon(cliente), detalle), isNull);
+      expect(destino(soloCon(cliente), carritoDelDetalle), isNull);
     });
 
     test('repartidor en inicio y en un detalle va a repartidor', () {
@@ -239,6 +244,10 @@ void main() {
         AppRutas.repartidor,
       );
       expect(destino(soloCon(repartidor), detalle), AppRutas.repartidor);
+      expect(
+        destino(soloCon(repartidor), carritoDelDetalle),
+        AppRutas.repartidor,
+      );
     });
 
     test('sin sesión, inicio y el detalle mandan a bienvenida', () {

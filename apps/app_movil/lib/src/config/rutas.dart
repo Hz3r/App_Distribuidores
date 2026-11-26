@@ -26,6 +26,12 @@ abstract final class AppRutas {
   /// Detalle de un producto. Vive bajo el catálogo, pero se abre por encima
   /// de la barra inferior.
   static String detalleProducto(String id) => '$catalogo/producto/$id';
+
+  /// El carrito abierto desde el detalle de un producto: encima del detalle,
+  /// para que atrás vuelva a él. Es la misma pantalla que la pestaña
+  /// [carrito].
+  static String carritoDesdeDetalle(String id) =>
+      '${detalleProducto(id)}/carrito';
   static const String carrito = '/carrito';
   static const String checkout = '/checkout';
   static const String pedidos = '/pedidos';

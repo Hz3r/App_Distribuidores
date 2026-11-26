@@ -1,5 +1,6 @@
 import 'package:app_movil/src/config/rutas.dart';
 import 'package:app_movil/src/features/carrito/presentation/carrito_providers.dart';
+import 'package:app_movil/src/features/carrito/presentation/carrito_screen.dart';
 import 'package:app_movil/src/features/catalogo/domain/catalogo.dart';
 import 'package:app_movil/src/features/catalogo/presentation/detalle_producto_screen.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -260,7 +261,9 @@ void main() {
     expect(boton.onPressed, isNull);
   });
 
-  testWidgets('el icono del carrito lleva al carrito', (tester) async {
+  testWidgets('el icono del carrito abre el carrito encima del detalle', (
+    tester,
+  ) async {
     final (:router, :container) = await montarCliente(
       tester,
       repositorio: repositorio,
@@ -270,7 +273,12 @@ void main() {
     await tester.tap(find.byTooltip('Ver carrito'));
     await tester.pumpAndSettle();
 
-    expect(router.state.matchedLocation, AppRutas.carrito);
+    expect(router.state.matchedLocation, AppRutas.carritoDesdeDetalle('p1'));
+    expect(find.byType(CarritoScreen), findsOneWidget);
+    // Su flecha de volver regresa al detalle.
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(router.state.matchedLocation, AppRutas.detalleProducto('p1'));
   });
 
   testWidgets('producto inexistente: mensaje y vuelta al catálogo', (

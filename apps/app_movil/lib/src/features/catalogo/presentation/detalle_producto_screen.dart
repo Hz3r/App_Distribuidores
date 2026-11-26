@@ -95,7 +95,7 @@ class _DetalleProductoScreenState extends ConsumerState<DetalleProductoScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const _Encabezado(),
+            _Encabezado(productoId: widget.productoId),
             Expanded(child: cuerpo),
           ],
         ),
@@ -247,7 +247,9 @@ class _Vista {
 }
 
 class _Encabezado extends StatelessWidget {
-  const _Encabezado();
+  const _Encabezado({required this.productoId});
+
+  final String productoId;
 
   @override
   Widget build(BuildContext context) {
@@ -273,7 +275,9 @@ class _Encabezado extends StatelessWidget {
           BotonCircular(
             icono: Icons.shopping_cart_outlined,
             tooltip: 'Ver carrito',
-            onPressed: () => context.go(AppRutas.carrito),
+            // Encima del detalle: con atrás se vuelve a él.
+            onPressed: () =>
+                context.go(AppRutas.carritoDesdeDetalle(productoId)),
             child: const IconoCarrito(),
           ),
         ],

@@ -1,19 +1,37 @@
 {
+  // Usa siempre una de estas configuraciones (panel "Run and Debug" o F5).
+  // El botón "Run" que aparece sobre main() NO pasa env/dev.json y la app
+  // muestra "Falta la configuración de Supabase".
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "App móvil (dev)",
+      "name": "App móvil en Chrome (dev)",
       "request": "launch",
       "type": "dart",
       "program": "apps/app_movil/lib/main.dart",
-      "args": ["--dart-define-from-file=env/dev.json"]
+      "args": [
+        "-d",
+        "chrome",
+        "--dart-define-from-file=${workspaceFolder}/env/dev.json"
+      ]
+    },
+    {
+      "name": "App móvil en dispositivo (dev)",
+      "request": "launch",
+      "type": "dart",
+      "program": "apps/app_movil/lib/main.dart",
+      "args": ["--dart-define-from-file=${workspaceFolder}/env/dev.json"]
     },
     {
       "name": "Panel web (dev)",
       "request": "launch",
       "type": "dart",
       "program": "apps/panel_web/lib/main.dart",
-      "args": ["-d", "chrome", "--dart-define-from-file=env/dev.json"]
+      "args": [
+        "-d",
+        "chrome",
+        "--dart-define-from-file=${workspaceFolder}/env/dev.json"
+      ]
     }
   ]
 }

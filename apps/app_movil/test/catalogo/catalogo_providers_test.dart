@@ -13,7 +13,7 @@ import '../registro/dobles.dart';
 import '../sesion/acceso_fijo.dart';
 
 /// Doble de [CatalogoRepositorio]: anota cada carga y devuelve un catálogo
-/// vacío.
+/// vacío del distribuidor pedido.
 class CatalogoRepositorioDoble implements CatalogoRepositorio {
   final cargas = <(String, bool)>[];
 
@@ -23,7 +23,12 @@ class CatalogoRepositorioDoble implements CatalogoRepositorio {
     required bool esCliente,
   }) async {
     cargas.add((distribuidorId, esCliente));
-    return const Catalogo(categorias: [], productos: [], preciosLista: {});
+    return Catalogo(
+      distribuidorId: distribuidorId,
+      categorias: const [],
+      productos: const [],
+      preciosLista: const {},
+    );
   }
 }
 

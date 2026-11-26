@@ -23,6 +23,7 @@ import 'fabricas.dart';
 /// marcas; "Ron Blanco 1 L" está agotado. Ninguno tiene `imagenUrl`, así que
 /// no hay llamadas de red.
 Catalogo catalogoDePrueba() => Catalogo(
+  distribuidorId: 'd1',
   categorias: [
     categoria('c1', nombre: 'Cervezas', orden: 1),
     categoria('c2', nombre: 'Rones', orden: 2),
@@ -114,14 +115,20 @@ final ahoraDePrueba = DateTime.utc(2026, 11, 26, 15);
 /// Monta la app completa (router, barra y avisos reales) con una bodega
 /// activa, [repositorio] y [pedidos] (sin pedidos si no se da), con el reloj
 /// en [ahoraDePrueba], y navega a [ubicacion], en un teléfono de [ancho]
-/// puntos lógicos. Sin reintentos automáticos de Riverpod, para que un error
-/// quede a la vista.
+/// puntos lógicos. [control] reemplaza el acceso fijo de la bodega (por
+/// ejemplo, para cambiar de membresía durante la prueba).
+///
+/// Sin reintentos automáticos de Riverpod, para que un error quede a la
+/// vista; con [reintentosPorDefecto] el contenedor usa la política por
+/// defecto, como en producción.
 Future<({GoRouter router, ProviderContainer container})> montarCliente(
   WidgetTester tester, {
   required CatalogoRepositorio repositorio,
   PedidosResumenRepositorio? pedidos,
   String ubicacion = AppRutas.catalogo,
   double ancho = 390,
+  ControlAcceso? control,
+  bool reintentosPorDefecto = false,
 }) async {
   tester.view.physicalSize = Size(ancho * 3, 2532);
   tester.view.devicePixelRatio = 3;
@@ -129,10 +136,11 @@ Future<({GoRouter router, ProviderContainer container})> montarCliente(
 
   final bodega = bodegaDePrueba();
   final container = ProviderContainer(
-    retry: (_, _) => null,
+    retry: reintentosPorDefecto ? null : (_, _) => null,
     overrides: [
       controlAccesoProvider.overrideWith(
         () =>
+            control ??
             ControlAccesoFalso(ConAcceso(membresias: [bodega], activa: bodega)),
       ),
       catalogoRepositorioProvider.overrideWithValue(repositorio),

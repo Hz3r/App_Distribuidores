@@ -8,6 +8,7 @@ void main() {
   // Cuatro productos en dos categorías y tres marcas (una vacía).
   final productos = productosDelCatalogo(
     Catalogo(
+      distribuidorId: 'd1',
       categorias: [categoria('ron'), categoria('pisco')],
       productos: [
         producto(
@@ -130,6 +131,7 @@ void main() {
       ...productos,
       ...productosDelCatalogo(
         Catalogo(
+          distribuidorId: 'd1',
           categorias: const [],
           productos: [
             producto('otro', marca: 'Portón', categoriaId: null),
@@ -194,6 +196,7 @@ void main() {
   test('Producto sin marca no rompe la búsqueda', () {
     final sinMarca = productosDelCatalogo(
       Catalogo(
+        distribuidorId: 'd1',
         categorias: const [],
         productos: [producto('x', nombre: 'Vino Tinto', categoriaId: null)],
         preciosLista: const <String, int>{},

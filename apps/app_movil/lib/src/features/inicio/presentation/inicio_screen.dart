@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../config/rutas.dart';
+import '../../../shared/lectura_vigente.dart';
 import '../../../shared/tema_app.dart';
 import '../../../shared/widgets/boton_circular.dart';
 import '../../../shared/widgets/texto_ajustable.dart';
@@ -113,15 +114,13 @@ class _InicioScreenState extends ConsumerState<InicioScreen> {
 
   /// Resumen, categorías y productos; o cargando, o el error.
   List<Widget> _contenido() {
-    final asincronoCatalogo = ref.watch(catalogoProvider);
-    final asincronoResumen = ref.watch(resumenComprasProvider);
-    final catalogo = asincronoCatalogo.value;
-    final resumen = asincronoResumen.value;
+    final (lectura: lecturaCatalogo, :catalogo) = observarCatalogo(ref);
+    final (lectura: lecturaResumen, :resumen) = observarResumen(ref);
 
     if (catalogo == null || resumen == null) {
       final cargando =
-          (catalogo == null && asincronoCatalogo.isLoading) ||
-          (resumen == null && asincronoResumen.isLoading);
+          (catalogo == null && !lecturaCatalogo.mostrarError) ||
+          (resumen == null && !lecturaResumen.mostrarError);
       if (cargando) {
         return const [
           Padding(

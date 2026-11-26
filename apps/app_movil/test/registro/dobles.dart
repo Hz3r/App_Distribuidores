@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:app_movil/app.dart';
-import 'package:app_movil/src/features/catalogo/domain/catalogo.dart';
 import 'package:app_movil/src/features/catalogo/presentation/catalogo_providers.dart';
 import 'package:app_movil/src/features/inicio/presentation/inicio_providers.dart';
 import 'package:app_movil/src/features/registro/domain/cuentas_repositorio.dart';
@@ -240,11 +239,7 @@ Future<GoRouter> montarApp(
       cuentasRepositorioProvider.overrideWithValue(
         cuentas ?? CuentasRepositorioDoble(),
       ),
-      catalogoRepositorioProvider.overrideWithValue(
-        CatalogoRepositorioFijo(
-          const Catalogo(categorias: [], productos: [], preciosLista: {}),
-        ),
-      ),
+      catalogoRepositorioProvider.overrideWithValue(CatalogoRepositorioVacio()),
       pedidosResumenRepositorioProvider.overrideWithValue(
         PedidosResumenRepositorioFijo(),
       ),

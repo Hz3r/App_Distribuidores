@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../shared/lectura_vigente.dart';
 import '../../sesion/presentation/sesion_activa.dart';
 import '../data/catalogo_repositorio_supabase.dart';
 import '../domain/catalogo.dart';
@@ -40,6 +41,24 @@ Future<Catalogo> catalogo(Ref ref) async {
   return ref
       .watch(catalogoRepositorioProvider)
       .cargar(distribuidorId: distribuidorId, esCliente: esCliente);
+}
+
+/// El catálogo como lo leen las pantallas: la [lectura] de [catalogoProvider]
+/// y el [catalogo], solo si es del distribuidor activo. Mientras llega el de
+/// otro distribuidor, [catalogo] es `null` y la pantalla dice "cargando" (o
+/// el error): nunca muestra ni deja agregar productos del anterior. Al
+/// deslizar para recargar sigue siendo el actual.
+({AsyncValue<Catalogo> lectura, Catalogo? catalogo}) observarCatalogo(
+  WidgetRef ref,
+) {
+  final distribuidorId = ref.watch(
+    membresiaActivaProvider.select((m) => m?.distribuidorId),
+  );
+  final lectura = ref.watch(catalogoProvider);
+  return (
+    lectura: lectura,
+    catalogo: lectura.valorVigente((c) => c.distribuidorId == distribuidorId),
+  );
 }
 
 /// Filtros elegidos en el catálogo. Se conservan sin pantallas que los

@@ -7,6 +7,7 @@ import 'precios.dart';
 /// Flutter ni Supabase.
 class Catalogo {
   const Catalogo({
+    required this.distribuidorId,
     required this.categorias,
     required this.productos,
     required this.preciosLista,
@@ -16,6 +17,7 @@ class Catalogo {
   /// ordenadas por `orden` y nombre, y pasa [preciosLista] a un mapa por
   /// presentación.
   factory Catalogo.desde({
+    required String distribuidorId,
     required List<Categoria> categorias,
     required List<Producto> productos,
     required List<PrecioLista> preciosLista,
@@ -25,6 +27,7 @@ class Catalogo {
         if (c.activo) c,
     ]..sort((a, b) => _porOrdenYNombre(a.orden, a.nombre, b.orden, b.nombre));
     return Catalogo(
+      distribuidorId: distribuidorId,
       categorias: activas,
       productos: productos,
       preciosLista: {
@@ -32,6 +35,11 @@ class Catalogo {
       },
     );
   }
+
+  /// Distribuidor con el que se cargó. Las pantallas solo usan un catálogo
+  /// del distribuidor activo: al cambiar de membresía, el anterior sigue en
+  /// memoria mientras llega el nuevo.
+  final String distribuidorId;
 
   /// Activas, por `orden` y nombre.
   final List<Categoria> categorias;

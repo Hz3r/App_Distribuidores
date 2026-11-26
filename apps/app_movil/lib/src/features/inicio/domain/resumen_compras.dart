@@ -6,6 +6,8 @@ import '../../catalogo/domain/catalogo.dart';
 /// pura: sin Flutter ni Supabase.
 class ResumenCompras {
   const ResumenCompras({
+    required this.distribuidorId,
+    required this.clienteId,
     required this.ultimoPedido,
     required this.compradoEsteMesCentimos,
     required this.compradoMesAnteriorCentimos,
@@ -13,6 +15,12 @@ class ResumenCompras {
     required this.productosMasPedidos,
     required this.mesAnterior,
   });
+
+  /// Distribuidor y bodega de los pedidos resumidos. Las pantallas solo
+  /// usan el resumen de la bodega activa: al cambiar de membresía, el
+  /// anterior sigue en memoria mientras llega el nuevo.
+  final String distribuidorId;
+  final String clienteId;
 
   /// El más reciente, de cualquier estado y sin límite de fecha; `null` solo
   /// si la bodega nunca hizo un pedido.
@@ -68,14 +76,16 @@ DateTime desdeParaResumen({
   return inicioMesAnterior.isBefore(hace90) ? inicioMesAnterior : hace90;
 }
 
-/// Resume [pedidos] (los recientes, ver [desdeParaResumen]) de una bodega.
-/// [ultimoPedido] se lee aparte y sin límite de fecha: puede ser más viejo
+/// Resume [pedidos] (los recientes, ver [desdeParaResumen]) de la bodega
+/// [clienteId] en [distribuidorId]. [ultimoPedido] se lee aparte y sin límite de fecha: puede ser más viejo
 /// que todos los de [pedidos].
 ///
 /// [ahora] se pasa como parámetro para poder probar; los meses se cuentan
 /// en la zona horaria [desfaseZona] del distribuidor (America/Lima = UTC−5).
 ResumenCompras resumirCompras(
   List<Pedido> pedidos, {
+  required String distribuidorId,
+  required String clienteId,
   required Pedido? ultimoPedido,
   required DateTime ahora,
   Duration desfaseZona = const Duration(hours: -5),
@@ -116,6 +126,8 @@ ResumenCompras resumirCompras(
     });
 
   return ResumenCompras(
+    distribuidorId: distribuidorId,
+    clienteId: clienteId,
     ultimoPedido: ultimoPedido,
     compradoEsteMesCentimos: esteMes,
     compradoMesAnteriorCentimos: anterior,

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../config/rutas.dart';
+import '../../../shared/lectura_vigente.dart';
 import '../../../shared/tema_app.dart';
 import '../../../shared/widgets/boton_circular.dart';
 import '../../../shared/widgets/texto_ajustable.dart';
@@ -45,12 +46,11 @@ class _DetalleProductoScreenState extends ConsumerState<DetalleProductoScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final asincrono = ref.watch(catalogoProvider);
-    final catalogo = asincrono.value;
+    final (:lectura, :catalogo) = observarCatalogo(ref);
     final Widget cuerpo;
     Widget? barra;
     if (catalogo == null) {
-      cuerpo = asincrono.isLoading
+      cuerpo = !lectura.mostrarError
           ? const Center(child: CircularProgressIndicator())
           : MensajeEstado(
               icono: Icons.cloud_off_outlined,

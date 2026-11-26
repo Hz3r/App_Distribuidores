@@ -35,6 +35,7 @@ Finder tramoResaltado() =>
 /// Un producto con dos presentaciones que comparten 24 unidades: "Unidad"
 /// (24 disponibles) y "Caja x 12" (2 disponibles).
 Catalogo catalogoConDosPresentaciones() => Catalogo(
+  distribuidorId: 'd1',
   categorias: [categoria('c2', nombre: 'Piscos')],
   productos: [
     producto(
@@ -143,6 +144,7 @@ void main() {
 
   testWidgets('"+" no pasa del disponible y "−" no baja de 1', (tester) async {
     repositorio.catalogo = Catalogo(
+      distribuidorId: 'd1',
       categorias: const [],
       productos: [
         producto('p', nombre: 'Vino Tinto', categoriaId: null, stockFisico: 3),
@@ -371,6 +373,7 @@ void main() {
   for (final ancho in [360.0, 320.0]) {
     testWidgets('a $ancho de ancho el total se lee completo', (tester) async {
       repositorio.catalogo = Catalogo(
+        distribuidorId: 'd1',
         categorias: const [],
         productos: [
           producto(

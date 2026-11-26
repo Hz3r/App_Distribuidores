@@ -179,4 +179,4 @@ final class ResumenComprasProvider
   }
 }
 
-String _$resumenComprasHash() => r'017e09f48b249c9fd4064826ed8e3b3d7c95bb57';
+String _$resumenComprasHash() => r'99d5615d14a297ba97e99120eb63eaad155be580';

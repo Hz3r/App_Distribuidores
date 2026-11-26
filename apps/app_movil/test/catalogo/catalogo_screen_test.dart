@@ -202,6 +202,7 @@ void main() {
   testWidgets('"+" se deshabilita cuando el carrito tiene todo el '
       'disponible', (tester) async {
     repositorio.catalogo = Catalogo(
+      distribuidorId: 'd1',
       categorias: const [],
       productos: [
         producto(
@@ -265,6 +266,7 @@ void main() {
 
   testWidgets('catálogo vacío lo dice', (tester) async {
     repositorio.catalogo = const Catalogo(
+      distribuidorId: 'd1',
       categorias: [],
       productos: [],
       preciosLista: {},
@@ -341,6 +343,7 @@ void main() {
       tester,
     ) async {
       repositorio.catalogo = Catalogo(
+        distribuidorId: 'd1',
         categorias: const [],
         productos: [
           producto(

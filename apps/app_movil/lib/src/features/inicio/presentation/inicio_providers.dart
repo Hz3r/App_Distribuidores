@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../shared/lectura_vigente.dart';
 import '../../sesion/presentation/sesion_activa.dart';
 import '../data/pedidos_resumen_repositorio_supabase.dart';
 import '../domain/pedidos_resumen_repositorio.dart';
@@ -55,8 +56,31 @@ Future<ResumenCompras> resumenCompras(Ref ref) async {
   ).wait;
   return resumirCompras(
     recientes,
+    distribuidorId: distribuidorId,
+    clienteId: clienteId,
     ultimoPedido: ultimo,
     ahora: ahora,
     desfaseZona: desfaseZonaDistribuidor,
+  );
+}
+
+/// El resumen como lo lee el inicio: la [lectura] de [resumenComprasProvider]
+/// y el [resumen], solo si es de la bodega activa (mismo distribuidor y
+/// misma bodega). Mientras llega el de otra, [resumen] es `null`.
+({AsyncValue<ResumenCompras> lectura, ResumenCompras? resumen}) observarResumen(
+  WidgetRef ref,
+) {
+  final (:distribuidorId, :clienteId) = ref.watch(
+    membresiaActivaProvider.select(
+      (m) =>
+          (distribuidorId: m?.distribuidorId, clienteId: m?.clienteNegocioId),
+    ),
+  );
+  final lectura = ref.watch(resumenComprasProvider);
+  return (
+    lectura: lectura,
+    resumen: lectura.valorVigente(
+      (r) => r.distribuidorId == distribuidorId && r.clienteId == clienteId,
+    ),
   );
 }

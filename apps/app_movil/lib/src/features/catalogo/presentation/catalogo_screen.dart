@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../shared/lectura_vigente.dart';
 import '../../../shared/tema_app.dart';
 import '../../../shared/widgets/boton_circular.dart';
 import '../domain/catalogo.dart';
@@ -138,10 +139,9 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen> {
   }
 
   Widget _contenido() {
-    final asincrono = ref.watch(catalogoProvider);
-    final catalogo = asincrono.value;
+    final (:lectura, :catalogo) = observarCatalogo(ref);
     if (catalogo == null) {
-      if (asincrono.isLoading) {
+      if (!lectura.mostrarError) {
         return const Center(child: CircularProgressIndicator());
       }
       return MensajeEstado(

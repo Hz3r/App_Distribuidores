@@ -28,6 +28,21 @@ class CatalogoRepositorioFijo implements CatalogoRepositorio {
   }
 }
 
+/// Doble de [CatalogoRepositorio]: un catálogo vacío del distribuidor que se
+/// pida.
+class CatalogoRepositorioVacio implements CatalogoRepositorio {
+  @override
+  Future<Catalogo> cargar({
+    required String distribuidorId,
+    required bool esCliente,
+  }) async => Catalogo(
+    distribuidorId: distribuidorId,
+    categorias: const [],
+    productos: const [],
+    preciosLista: const {},
+  );
+}
+
 /// Doble de [PedidosResumenRepositorio]: devuelve [pedidos] como los
 /// recientes y [ultimoFijo] como el último pedido (si es null, el más reciente
 /// de [pedidos]); o lanza [error] si no es null. Anota cada lectura.

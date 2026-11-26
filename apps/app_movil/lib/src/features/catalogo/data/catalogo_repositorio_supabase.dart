@@ -32,6 +32,7 @@ class CatalogoRepositorioSupabase implements CatalogoRepositorio {
       _preciosLista(distribuidorId, esCliente),
     ).wait;
     return Catalogo.desde(
+      distribuidorId: distribuidorId,
       categorias: categorias.map(Categoria.fromJson).toList(),
       productos: productos.map(Producto.fromJson).toList(),
       preciosLista: preciosLista,

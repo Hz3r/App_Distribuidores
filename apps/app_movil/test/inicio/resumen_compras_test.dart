@@ -12,12 +12,20 @@ void main() {
   final octubre = DateTime.utc(2026, 10, 15, 15);
 
   ResumenCompras resumir(List<Pedido> pedidos, {Pedido? ultimo}) =>
-      resumirCompras(pedidos, ultimoPedido: ultimo, ahora: ahora);
+      resumirCompras(
+        pedidos,
+        distribuidorId: 'd1',
+        clienteId: 'cn-d1',
+        ultimoPedido: ultimo,
+        ahora: ahora,
+      );
 
   group('resumirCompras', () {
     test('sin pedidos: nada que mostrar', () {
       final r = resumir(const []);
 
+      expect(r.distribuidorId, 'd1');
+      expect(r.clienteId, 'cn-d1');
       expect(r.ultimoPedido, isNull);
       expect(r.compradoEsteMesCentimos, 0);
       expect(r.variacionPorcentaje, isNull);
@@ -92,6 +100,8 @@ void main() {
           pedido('a', total: 100000, creadoEn: DateTime.utc(2026, 12, 20)),
           pedido('b', total: 150000, creadoEn: DateTime.utc(2027, 1, 10)),
         ],
+        distribuidorId: 'd1',
+        clienteId: 'cn-d1',
         ultimoPedido: null,
         ahora: DateTime.utc(2027, 1, 15),
       );
@@ -219,6 +229,7 @@ void main() {
   test('productosEnOrden: en el orden dado y solo los que siguen', () {
     final catalogo = productosDelCatalogo(
       Catalogo(
+        distribuidorId: 'd1',
         categorias: [categoria('c1')],
         productos: [producto('p1'), producto('p2'), producto('p3')],
         preciosLista: const {},

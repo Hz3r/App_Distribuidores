@@ -1,9 +1,10 @@
 import 'dart:async';
 
+import 'package:app_movil/src/features/registro/domain/codigo_por_canjear.dart';
+import 'package:app_movil/src/features/registro/domain/cuentas_repositorio.dart';
 import 'package:app_movil/src/features/registro/domain/registro_pendiente.dart';
 import 'package:app_movil/src/features/registro/presentation/registro_providers.dart';
 import 'package:app_movil/src/features/sesion/domain/acceso.dart';
-import 'package:app_movil/src/features/sesion/domain/membresias_repositorio.dart';
 import 'package:app_movil/src/features/sesion/presentation/control_acceso.dart';
 import 'package:core/core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,67 +12,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../registro/dobles.dart';
 
-/// Constructor auxiliar: membresía activa con su distribuidor embebido.
-Membresia membresia(
-  String distribuidorId, {
-  RolMembresia rol = RolMembresia.cliente,
-}) {
-  return Membresia(
-    id: 'm-$distribuidorId-${rol.name}',
-    perfilId: 'p1',
-    distribuidorId: distribuidorId,
-    rol: rol,
-    estado: EstadoMembresia.activa,
-    creadoEn: DateTime.utc(2026),
-    distribuidor: Distribuidor(
-      id: distribuidorId,
-      nombre: 'Distribuidor $distribuidorId',
-      slug: distribuidorId,
-      estado: EstadoDistribuidor.activo,
-      moneda: 'PEN',
-      zonaHoraria: 'America/Lima',
-      configTema: const ConfigTema(),
-      creadoEn: DateTime.utc(2026),
-    ),
-  );
-}
-
-/// Doble de [MembresiasRepositorio]. Si [respuesta] es un `Completer`, la
-/// lectura queda pendiente hasta que la prueba lo complete.
-class RepositorioDoble implements MembresiasRepositorio {
-  List<Membresia> membresias = [];
-  String? preferido;
-  Object? error;
-  Completer<List<Membresia>>? respuesta;
-  final guardados = <String>[];
-  int lecturas = 0;
-
-  /// Si no es null, cada lectura se anota aquí.
-  List<String>? bitacora;
-
-  @override
-  Future<List<Membresia>> listarMias() async {
-    lecturas++;
-    bitacora?.add('listar');
-    final pendiente = respuesta;
-    if (pendiente != null) return pendiente.future;
-    final fallo = error;
-    if (fallo != null) throw fallo;
-    return membresias;
-  }
-
-  @override
-  String? distribuidorPreferido() => preferido;
-
-  @override
-  Future<void> guardarDistribuidorPreferido(String distribuidorId) async {
-    guardados.add(distribuidorId);
-    preferido = distribuidorId;
-  }
-}
-
 void main() {
-  late RepositorioDoble repositorio;
+  late MembresiasRepositorioDoble repositorio;
   late InvitacionesRepositorioDoble invitaciones;
   late CuentasRepositorioDoble cuentas;
   late List<String> bitacora;
@@ -81,7 +23,7 @@ void main() {
 
   setUp(() {
     bitacora = [];
-    repositorio = RepositorioDoble()..bitacora = bitacora;
+    repositorio = MembresiasRepositorioDoble()..bitacora = bitacora;
     invitaciones = InvitacionesRepositorioDoble(bitacora: bitacora);
     cuentas = CuentasRepositorioDoble(bitacora: bitacora);
     sesion = StreamController<bool>();
@@ -452,6 +394,37 @@ void main() {
       expect((leer() as ConAcceso).aviso, aviso);
     });
 
+    test('si la sesión cambia a mitad del canje y la misma persona vuelve a '
+        'ingresar, el canje se vuelve a intentar', () async {
+      final cliente = membresia('d1');
+      repositorio.membresias = [cliente];
+      invitaciones.canjePendiente = Completer<bool>();
+
+      await emitir(true);
+      await emitir(false);
+      invitaciones.canjePendiente!.complete(true);
+      await pumpEventQueue();
+      expect(cuentas.limpiezas, 0);
+
+      // Vuelve a ingresar sin reiniciar la app: el servidor ya lo canjeó.
+      invitaciones
+        ..canjePendiente = null
+        ..canjeOk = false;
+      bitacora.clear();
+      await emitir(true);
+
+      expect(bitacora, [
+        'canjear AB2CD3E4',
+        'completar d1',
+        'limpiar',
+        'listar',
+      ]);
+      expect(cuentas.pendiente, isNull);
+      final acceso = leer() as ConAcceso;
+      expect(acceso.activa, cliente);
+      expect(acceso.aviso, isNull);
+    });
+
     test(
       'el aviso de sesión que emite limpiar el pendiente no recarga',
       () async {
@@ -467,5 +440,160 @@ void main() {
         expect(repositorio.lecturas, 1);
       },
     );
+  });
+  group('código por canjear al ingresar', () {
+    const codigo = CodigoPorCanjear(codigo: 'XY7ZW8V9', distribuidorId: 'd2');
+    const aviso =
+        'No pudimos vincular este código. Pide uno nuevo a tu distribuidor.';
+
+    ControlAcceso control() => container.read(controlAccesoProvider.notifier);
+
+    test('ingreso correcto: con la sesión lo canjea una vez y la membresía '
+        'nueva aparece', () async {
+      await emitir(false);
+      final resultado = await control().ingresar(
+        'jose@bodega.pe',
+        'secreta123',
+        codigoPorCanjear: codigo,
+      );
+      expect(resultado, ResultadoIngreso.ok);
+      expect(cuentas.ingresos, [('jose@bodega.pe', 'secreta123')]);
+      // Nada se canjea antes de que llegue la sesión.
+      expect(invitaciones.canjes, isEmpty);
+
+      repositorio.membresias = [membresia('d1'), membresia('d2')];
+      await emitir(true);
+
+      expect(bitacora, ['canjear XY7ZW8V9', 'listar']);
+      expect(cuentas.completados, isEmpty);
+      expect(cuentas.limpiezas, 0);
+      final acceso = leer() as ConAcceso;
+      expect(acceso.membresias.map((m) => m.distribuidorId), ['d1', 'd2']);
+      expect(acceso.aviso, isNull);
+
+      // Ni una recarga ni el aviso `userUpdated` lo canjean otra vez.
+      await control().recargar();
+      await emitir(true);
+      expect(invitaciones.canjes, ['XY7ZW8V9']);
+    });
+
+    test('si no vincula, entra igual y deja el aviso', () async {
+      invitaciones.canjeOk = false;
+      repositorio.membresias = [membresia('d1')];
+      await emitir(false);
+      await control().ingresar(
+        'a@b.pe',
+        'secreta123',
+        codigoPorCanjear: codigo,
+      );
+
+      await emitir(true);
+
+      final acceso = leer() as ConAcceso;
+      expect(acceso.activa?.distribuidorId, 'd1');
+      expect(acceso.aviso, aviso);
+      expect(invitaciones.canjes, ['XY7ZW8V9']);
+    });
+
+    test('sin código no canjea nada', () async {
+      repositorio.membresias = [membresia('d1')];
+      await emitir(false);
+      await control().ingresar('a@b.pe', 'secreta123');
+
+      await emitir(true);
+
+      expect(bitacora, ['listar']);
+      expect(invitaciones.canjes, isEmpty);
+    });
+
+    test('si el ingreso falla, el código no queda para otra sesión', () async {
+      cuentas.resultadoIngreso = ResultadoIngreso.credencialesIncorrectas;
+      repositorio.membresias = [membresia('d1')];
+      await emitir(false);
+      final resultado = await control().ingresar(
+        'a@b.pe',
+        'mala',
+        codigoPorCanjear: codigo,
+      );
+      expect(resultado, ResultadoIngreso.credencialesIncorrectas);
+
+      // Una sesión que llega después por otro camino no lo canjea.
+      await emitir(true);
+
+      expect(invitaciones.canjes, isEmpty);
+    });
+
+    test('si el canje lanza, queda en ErrorAcceso y reintentar lo canjea '
+        'una sola vez más', () async {
+      invitaciones.errorCanje = Exception('sin red');
+      repositorio.membresias = [membresia('d1'), membresia('d2')];
+      await emitir(false);
+      await control().ingresar(
+        'a@b.pe',
+        'secreta123',
+        codigoPorCanjear: codigo,
+      );
+
+      await emitir(true);
+      expect(leer(), isA<ErrorAcceso>());
+
+      invitaciones.errorCanje = null;
+      await control().recargar();
+      await control().recargar();
+
+      expect(invitaciones.canjes, ['XY7ZW8V9', 'XY7ZW8V9']);
+      expect(leer(), isA<ConAcceso>());
+    });
+
+    test(
+      'con un registro pendiente también, canjea los dos en orden',
+      () async {
+        cuentas.pendiente = const RegistroPendiente(
+          codigo: 'AB2CD3E4',
+          distribuidorId: 'd1',
+        );
+        repositorio.membresias = [membresia('d1'), membresia('d2')];
+        await emitir(false);
+        await control().ingresar(
+          'a@b.pe',
+          'secreta123',
+          codigoPorCanjear: codigo,
+        );
+
+        await emitir(true);
+
+        expect(bitacora, [
+          'canjear AB2CD3E4',
+          'limpiar',
+          'canjear XY7ZW8V9',
+          'listar',
+        ]);
+      },
+    );
+
+    test('si se cierra la sesión a mitad del canje, no lo retoma la sesión '
+        'siguiente', () async {
+      invitaciones.canjePendiente = Completer<bool>();
+      repositorio.membresias = [membresia('d1')];
+      await emitir(false);
+      await control().ingresar(
+        'a@b.pe',
+        'secreta123',
+        codigoPorCanjear: codigo,
+      );
+      await emitir(true);
+      expect(invitaciones.canjes, ['XY7ZW8V9']);
+
+      await emitir(false);
+      invitaciones.canjePendiente!.complete(true);
+      await pumpEventQueue();
+      expect(leer(), isA<SinSesion>());
+
+      invitaciones.canjePendiente = null;
+      await emitir(true);
+
+      expect(invitaciones.canjes, ['XY7ZW8V9']);
+      expect(leer(), isA<ConAcceso>());
+    });
   });
 }

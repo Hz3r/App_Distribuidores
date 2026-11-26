@@ -9,6 +9,7 @@ import '../features/catalogo/presentation/catalogo_screen.dart';
 import '../features/checkout/presentation/checkout_screen.dart';
 import '../features/perfil/presentation/perfil_screen.dart';
 import '../features/registro/domain/argumentos_registro.dart';
+import '../features/registro/domain/codigo_por_canjear.dart';
 import '../features/registro/presentation/bienvenida_screen.dart';
 import '../features/registro/presentation/codigo_screen.dart';
 import '../features/registro/presentation/registro_screen.dart';
@@ -66,7 +67,15 @@ GoRouter appRouter(Ref ref) {
           correo: state.extra is String ? state.extra! as String : null,
         ),
       ),
-      GoRoute(path: AppRutas.auth, builder: (_, _) => const IngresoScreen()),
+      GoRoute(
+        path: AppRutas.auth,
+        // Desde el registro recibe el código por canjear al ingresar.
+        builder: (_, state) => IngresoScreen(
+          codigoPorCanjear: state.extra is CodigoPorCanjear
+              ? state.extra! as CodigoPorCanjear
+              : null,
+        ),
+      ),
       GoRoute(
         path: AppRutas.cargando,
         builder: (_, _) => const CargandoScreen(),

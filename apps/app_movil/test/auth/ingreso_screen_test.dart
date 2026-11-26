@@ -1,8 +1,15 @@
 import 'dart:async';
 
 import 'package:app_movil/src/config/rutas.dart';
+import 'package:app_movil/src/features/auth/presentation/ingreso_screen.dart';
+import 'package:app_movil/src/features/registro/domain/argumentos_registro.dart';
+import 'package:app_movil/src/features/registro/domain/codigo_por_canjear.dart';
 import 'package:app_movil/src/features/registro/domain/cuentas_repositorio.dart';
+import 'package:app_movil/src/features/registro/domain/invitacion_previa.dart';
+import 'package:app_movil/src/features/registro/presentation/codigo_screen.dart';
 import 'package:app_movil/src/features/sesion/domain/acceso.dart';
+import 'package:app_movil/src/features/sesion/presentation/control_acceso.dart';
+import 'package:core/core.dart';
 import 'package:app_movil/src/shared/widgets/campo_etiquetado.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -135,4 +142,148 @@ void main() {
 
     expect(router.state.matchedLocation, AppRutas.codigo);
   });
+
+  testWidgets('desde el registro, el enlace vuelve a una sola pantalla de '
+      'código', (tester) async {
+    final router = await montarApp(
+      tester,
+      control: ControlAccesoFalso(const SinSesion()),
+      cuentas: cuentas,
+    );
+    unawaited(router.push(AppRutas.codigo));
+    await tester.pumpAndSettle();
+    unawaited(
+      router.push(
+        AppRutas.registro,
+        extra: const ArgumentosRegistro(
+          codigo: 'XY7ZW8V9',
+          invitacion: InvitacionPrevia(
+            distribuidorId: 'd2',
+            distribuidorNombre: 'Licores del Sur',
+            rol: RolMembresia.cliente,
+            negocio: NegocioPrevio(nombreNegocio: 'Bodega Don Pepe'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    unawaited(router.push(AppRutas.auth, extra: codigoPorCanjear));
+    await tester.pumpAndSettle();
+
+    final enlace = find.text('Tengo un código de invitación');
+    await tester.ensureVisible(enlace);
+    await tester.tap(enlace);
+    await tester.pumpAndSettle();
+
+    expect(router.state.matchedLocation, AppRutas.codigo);
+    expect(find.byType(CodigoScreen, skipOffstage: false), findsOneWidget);
+    expect(find.byType(IngresoScreen, skipOffstage: false), findsNothing);
+  });
+
+  group('con un código por canjear y el control de acceso real', () {
+    late StreamController<bool> sesion;
+    late InvitacionesRepositorioDoble invitaciones;
+    late MembresiasRepositorioDoble membresias;
+
+    setUp(() {
+      sesion = StreamController<bool>();
+      invitaciones = InvitacionesRepositorioDoble();
+      membresias = MembresiasRepositorioDoble()..membresias = [membresia('d1')];
+    });
+
+    tearDown(() => sesion.close());
+
+    /// Abre el ingreso sin sesión, con [extra] como lo deja el registro.
+    Future<GoRouter> abrir(WidgetTester tester, {Object? extra}) async {
+      // Antes de montar: la pantalla de espera no deja asentar la app.
+      sesion.add(false);
+      final router = await montarApp(
+        tester,
+        control: ControlAcceso(),
+        repositorio: invitaciones,
+        cuentas: cuentas,
+        overrides: [
+          haySesionProvider.overrideWith((ref) => sesion.stream),
+          membresiasRepositorioProvider.overrideWithValue(membresias),
+        ],
+      );
+      unawaited(router.push(AppRutas.auth, extra: extra));
+      await tester.pumpAndSettle();
+      return router;
+    }
+
+    /// Ingresa; si sale bien, llega la sesión como la emite Supabase.
+    Future<void> ingresarConSesion(WidgetTester tester) async {
+      await llenar(tester);
+      await tocarIngresar(tester);
+      if (cuentas.resultadoIngreso == ResultadoIngreso.ok) {
+        sesion.add(true);
+        await tester.pumpAndSettle();
+      }
+    }
+
+    testWidgets('ingreso correcto: lo canjea una vez y la membresía nueva '
+        'aparece', (tester) async {
+      final router = await abrir(tester, extra: codigoPorCanjear);
+      // El canje crea la membresía en d2.
+      membresias.membresias = [membresia('d1'), membresia('d2')];
+
+      await ingresarConSesion(tester);
+
+      expect(invitaciones.canjes, ['XY7ZW8V9']);
+      expect(find.byType(IngresoScreen, skipOffstage: false), findsNothing);
+      expect(router.state.matchedLocation, AppRutas.seleccionDistribuidor);
+      expect(find.text('Distribuidor d2'), findsOneWidget);
+      expect(find.textContaining('No pudimos vincular'), findsNothing);
+    });
+
+    testWidgets('un código que no vincula: entra y lo avisa', (tester) async {
+      invitaciones.canjeOk = false;
+      final router = await abrir(tester, extra: codigoPorCanjear);
+
+      await ingresarConSesion(tester);
+
+      expect(invitaciones.canjes, ['XY7ZW8V9']);
+      expect(router.state.matchedLocation, AppRutas.catalogo);
+      expect(
+        find.text(
+          'No pudimos vincular este código. Pide uno nuevo a tu distribuidor.',
+        ),
+        findsOneWidget,
+      );
+      // Deja pasar el tiempo del aviso.
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('sin código no canjea nada', (tester) async {
+      final router = await abrir(tester);
+
+      await ingresarConSesion(tester);
+
+      expect(invitaciones.canjes, isEmpty);
+      expect(router.state.matchedLocation, AppRutas.catalogo);
+    });
+
+    testWidgets('con credenciales incorrectas el código se conserva para el '
+        'siguiente intento', (tester) async {
+      cuentas.resultadoIngreso = ResultadoIngreso.credencialesIncorrectas;
+      await abrir(tester, extra: codigoPorCanjear);
+
+      await ingresarConSesion(tester);
+      expect(find.text('Correo o contraseña incorrectos.'), findsOneWidget);
+      expect(invitaciones.canjes, isEmpty);
+
+      cuentas.resultadoIngreso = ResultadoIngreso.ok;
+      await ingresarConSesion(tester);
+
+      expect(cuentas.ingresos, hasLength(2));
+      expect(invitaciones.canjes, ['XY7ZW8V9']);
+    });
+  });
 }
+
+const codigoPorCanjear = CodigoPorCanjear(
+  codigo: 'XY7ZW8V9',
+  distribuidorId: 'd2',
+);

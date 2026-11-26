@@ -121,6 +121,14 @@ void main() {
       expect(destino(sinElegir, AppRutas.seleccionDistribuidor), isNull);
     });
 
+    test('sin activa, codigo se permite para sumar otro distribuidor', () {
+      final sinElegir = ConAcceso(
+        membresias: [cliente, repartidor],
+        activa: null,
+      );
+      expect(destino(sinElegir, AppRutas.codigo), isNull);
+    });
+
     test('con activa, desde las rutas de paso va al inicio del rol', () {
       for (final ubicacion in [
         AppRutas.bienvenida,

@@ -5,15 +5,22 @@ import 'package:material_ui/material_ui.dart';
 import '../../../config/rutas.dart';
 import '../../../shared/tema_app.dart';
 import '../../../shared/widgets/campo_etiquetado.dart';
+import '../../registro/domain/codigo_por_canjear.dart';
 import '../../registro/domain/cuentas_repositorio.dart';
 import '../../registro/domain/datos_registro.dart';
-import '../../registro/presentation/registro_providers.dart';
+import '../../sesion/presentation/control_acceso.dart';
 
 /// Ingreso con correo y contraseña de una cuenta existente. Con sesión, el
 /// control de acceso (que canjea un registro pendiente si lo hay) y el
 /// router se encargan de entrar.
+///
+/// Si se llega desde el registro con un correo que ya tenía cuenta, trae
+/// [codigoPorCanjear]: el control de acceso lo canjea en cuanto hay sesión,
+/// aunque esta pantalla ya no esté montada.
 class IngresoScreen extends ConsumerStatefulWidget {
-  const IngresoScreen({super.key});
+  const IngresoScreen({this.codigoPorCanjear, super.key});
+
+  final CodigoPorCanjear? codigoPorCanjear;
 
   @override
   ConsumerState<IngresoScreen> createState() => _IngresoScreenState();
@@ -154,7 +161,9 @@ class _IngresoScreenState extends ConsumerState<IngresoScreen> {
                   ),
                   const SizedBox(height: 12),
                   TextButton(
-                    onPressed: () => context.push(AppRutas.codigo),
+                    // `go`, no `push`: si se llegó desde el registro, la
+                    // pantalla de código ya está en la pila.
+                    onPressed: () => context.go(AppRutas.codigo),
                     child: const Text('Tengo un código de invitación'),
                   ),
                 ],
@@ -185,9 +194,15 @@ class _IngresoScreenState extends ConsumerState<IngresoScreen> {
     if (!valido) return;
 
     setState(() => _enviando = true);
+    // El código queda en este widget: si el ingreso falla, va otra vez en
+    // el siguiente intento.
     final resultado = await ref
-        .read(cuentasRepositorioProvider)
-        .ingresar(_correo.text.trim(), _contrasena.text);
+        .read(controlAccesoProvider.notifier)
+        .ingresar(
+          _correo.text.trim(),
+          _contrasena.text,
+          codigoPorCanjear: widget.codigoPorCanjear,
+        );
     if (!mounted) return;
 
     // Con sesión el router sale de esta pantalla: el botón sigue

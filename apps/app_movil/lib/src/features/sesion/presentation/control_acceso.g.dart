@@ -156,7 +156,7 @@ final class ControlAccesoProvider
   }
 }
 
-String _$controlAccesoHash() => r'e1a99444131a56e54966de58d0a2913e58abcb28';
+String _$controlAccesoHash() => r'd60e109d8fd3577f0a3494151d2631b8e54de770';
 
 /// Acceso de la persona en la app móvil: decide a qué zona entra según sus
 /// membresías. La redirección la hace el router leyendo este estado.

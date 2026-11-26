@@ -29,7 +29,9 @@ final class DatosRegistro {
 final _correo = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 final _documento = RegExp(r'^(\d{8}|\d{11})$');
 final _celular = RegExp(r'^9\d{8}$');
-final _espacios = RegExp(r'\s');
+
+/// Separadores que se aceptan en un celular: espacios, guiones y paréntesis.
+final _separadoresTelefono = RegExp(r'[\s\-()]');
 
 /// Obligatorio, de 2 a 80 caracteres.
 String? validarNombre(String v) {
@@ -53,12 +55,20 @@ String? validarDocumento(String v) {
 }
 
 /// Vacío, o un celular peruano de 9 dígitos que empieza en 9. Se aceptan
-/// espacios y el prefijo `+51`.
+/// espacios, guiones y paréntesis como separadores, y el prefijo `+51`.
 String? validarTelefono(String v) {
-  var limpio = v.replaceAll(_espacios, '');
-  if (limpio.isEmpty) return null;
+  if (v.replaceAll(_separadoresTelefono, '').isEmpty) return null;
+  return normalizarTelefono(v) != null
+      ? null
+      : 'Escribe un celular de 9 dígitos.';
+}
+
+/// El celular tal como se guarda: 9 dígitos, sin prefijo ni separadores.
+/// `null` si está vacío o no es un celular válido (ver [validarTelefono]).
+String? normalizarTelefono(String v) {
+  var limpio = v.replaceAll(_separadoresTelefono, '');
   if (limpio.startsWith('+51')) limpio = limpio.substring(3);
-  return _celular.hasMatch(limpio) ? null : 'Escribe un celular de 9 dígitos.';
+  return _celular.hasMatch(limpio) ? limpio : null;
 }
 
 /// Vacía o de hasta 200 caracteres (el límite de `completar_datos_negocio`).

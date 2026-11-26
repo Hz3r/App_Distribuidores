@@ -24,10 +24,12 @@ String? destinoRedireccion({
       conAcceso = acceso;
   }
 
+  // Con sesión se puede canjear un código para sumar un distribuidor, sea
+  // cual sea el rol, sin membresías o sin una elegida todavía.
+  if (ubicacion == AppRutas.codigo) return null;
+
   final membresias = conAcceso.membresias;
   if (membresias.isEmpty) {
-    // Sin membresías puede canjear un código desde la pantalla de código.
-    if (ubicacion == AppRutas.codigo) return null;
     return _salvoQueYaEste(AppRutas.sinRol, ubicacion);
   }
 
@@ -40,10 +42,6 @@ String? destinoRedireccion({
   if (_rutasDePaso.contains(ubicacion)) {
     return _inicioPara(rol);
   }
-
-  // Con sesión se puede canjear otro código para sumar un distribuidor, sea
-  // cual sea el rol.
-  if (ubicacion == AppRutas.codigo) return null;
 
   // Elegir otro distribuidor solo tiene sentido si hay más de uno.
   if (ubicacion == AppRutas.seleccionDistribuidor) {

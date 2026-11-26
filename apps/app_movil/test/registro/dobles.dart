@@ -7,9 +7,12 @@ import 'package:app_movil/src/features/registro/domain/invitaciones_repositorio.
 import 'package:app_movil/src/features/registro/domain/registro_pendiente.dart';
 import 'package:app_movil/src/features/registro/presentation/registro_providers.dart';
 import 'package:app_movil/src/features/sesion/domain/acceso.dart';
+import 'package:app_movil/src/features/sesion/domain/membresias_repositorio.dart';
 import 'package:app_movil/src/features/sesion/presentation/control_acceso.dart';
 import 'package:app_movil/src/router/app_router.dart';
+import 'package:core/core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -133,6 +136,65 @@ class CuentasRepositorioDoble implements CuentasRepositorio {
   }
 }
 
+/// Constructor auxiliar: membresía activa con su distribuidor embebido.
+Membresia membresia(
+  String distribuidorId, {
+  RolMembresia rol = RolMembresia.cliente,
+}) {
+  return Membresia(
+    id: 'm-$distribuidorId-${rol.name}',
+    perfilId: 'p1',
+    distribuidorId: distribuidorId,
+    rol: rol,
+    estado: EstadoMembresia.activa,
+    creadoEn: DateTime.utc(2026),
+    distribuidor: Distribuidor(
+      id: distribuidorId,
+      nombre: 'Distribuidor $distribuidorId',
+      slug: distribuidorId,
+      estado: EstadoDistribuidor.activo,
+      moneda: 'PEN',
+      zonaHoraria: 'America/Lima',
+      configTema: const ConfigTema(),
+      creadoEn: DateTime.utc(2026),
+    ),
+  );
+}
+
+/// Doble de [MembresiasRepositorio]. Si [respuesta] es un `Completer`, la
+/// lectura queda pendiente hasta que la prueba lo complete.
+class MembresiasRepositorioDoble implements MembresiasRepositorio {
+  List<Membresia> membresias = [];
+  String? preferido;
+  Object? error;
+  Completer<List<Membresia>>? respuesta;
+  final guardados = <String>[];
+  int lecturas = 0;
+
+  /// Si no es null, cada lectura se anota aquí.
+  List<String>? bitacora;
+
+  @override
+  Future<List<Membresia>> listarMias() async {
+    lecturas++;
+    bitacora?.add('listar');
+    final pendiente = respuesta;
+    if (pendiente != null) return pendiente.future;
+    final fallo = error;
+    if (fallo != null) throw fallo;
+    return membresias;
+  }
+
+  @override
+  String? distribuidorPreferido() => preferido;
+
+  @override
+  Future<void> guardarDistribuidorPreferido(String distribuidorId) async {
+    guardados.add(distribuidorId);
+    preferido = distribuidorId;
+  }
+}
+
 /// Controlador de acceso falso: parte de un acceso fijo y cuenta las
 /// recargas. No toca `Supabase.instance`.
 class ControlAccesoFalso extends ControlAcceso {
@@ -150,11 +212,14 @@ class ControlAccesoFalso extends ControlAcceso {
 
 /// Monta la app completa (router y tema reales) con los dobles, en un
 /// tamaño de teléfono. Devuelve el router para navegar desde la prueba.
+/// [overrides] agrega otros reemplazos (por ejemplo, la sesión y las
+/// membresías para usar el control de acceso real).
 Future<GoRouter> montarApp(
   WidgetTester tester, {
   required ControlAcceso control,
   InvitacionesRepositorio? repositorio,
   CuentasRepositorio? cuentas,
+  List<Override> overrides = const [],
 }) async {
   tester.view.physicalSize = const Size(1170, 2532);
   tester.view.devicePixelRatio = 3;
@@ -169,6 +234,7 @@ Future<GoRouter> montarApp(
       cuentasRepositorioProvider.overrideWithValue(
         cuentas ?? CuentasRepositorioDoble(),
       ),
+      ...overrides,
     ],
   );
   addTearDown(container.dispose);

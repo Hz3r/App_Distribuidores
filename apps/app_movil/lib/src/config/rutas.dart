@@ -11,7 +11,8 @@ abstract final class AppRutas {
   static const String registro = '/registro';
   static const String revisaCorreo = '/revisa-correo';
 
-  /// Ingreso con una cuenta existente.
+  /// Ingreso con una cuenta existente; desde el registro recibe por `extra`
+  /// el código por canjear al ingresar (nunca la contraseña).
   static const String auth = '/auth';
   static const String cargando = '/cargando';
   static const String errorAcceso = '/error-acceso';

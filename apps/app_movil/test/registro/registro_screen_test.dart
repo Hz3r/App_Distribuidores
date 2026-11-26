@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:app_movil/src/config/rutas.dart';
 import 'package:app_movil/src/features/registro/domain/argumentos_registro.dart';
+import 'package:app_movil/src/features/registro/domain/codigo_por_canjear.dart';
 import 'package:app_movil/src/features/registro/domain/cuentas_repositorio.dart';
 import 'package:app_movil/src/features/registro/domain/invitacion_previa.dart';
 import 'package:app_movil/src/features/sesion/domain/acceso.dart';
@@ -249,12 +250,13 @@ void main() {
     expect(datos.correo, 'jose@bodega.pe');
     expect(datos.contrasena, 'secreta123');
     expect(datos.documento, '12345678');
-    expect(datos.telefono, '+51 987 654 321');
+    // El celular viaja normalizado: 9 dígitos, sin prefijo ni separadores.
+    expect(datos.telefono, '987654321');
     expect(datos.direccion, 'Jr. Lima 456');
     expect(pendiente.codigo, 'AB2CD3E4');
     expect(pendiente.distribuidorId, 'd1');
     expect(pendiente.documento, '12345678');
-    expect(pendiente.telefono, '+51 987 654 321');
+    expect(pendiente.telefono, '987654321');
     expect(pendiente.direccion, 'Jr. Lima 456');
 
     cuentas.crearPendiente!.complete(ResultadoCrearCuenta.error);
@@ -263,7 +265,7 @@ void main() {
   });
 
   testWidgets('con documento de solo lectura no lo manda en el pendiente y '
-      'conserva la referencia de la invitación', (tester) async {
+      'deja la referencia sin cambios', (tester) async {
     await abrirRegistro(tester, cuentas: cuentas);
     await llenarValido(tester);
 
@@ -273,7 +275,90 @@ void main() {
     expect(datos.documento, isNull);
     expect(pendiente.documento, isNull);
     expect(pendiente.direccion, 'Av. Los Olivos 123, Comas');
-    expect(pendiente.referencia, 'Frente al parque');
+    // La referencia no está en el formulario: `null` es "sin cambios".
+    expect(datos.referencia, isNull);
+    expect(pendiente.referencia, isNull);
+  });
+
+  testWidgets('una referencia larga del distribuidor no se reenvía', (
+    tester,
+  ) async {
+    await abrirRegistro(
+      tester,
+      cuentas: cuentas,
+      invitacion: InvitacionPrevia(
+        distribuidorId: 'd1',
+        distribuidorNombre: 'Licores del Norte',
+        rol: RolMembresia.cliente,
+        negocio: NegocioPrevio(
+          nombreNegocio: 'Bodega Don Pepe',
+          referencia: 'a' * 250,
+        ),
+      ),
+    );
+    await llenarValido(tester);
+
+    await tocarCrear(tester);
+
+    final (_, pendiente) = cuentas.creaciones.single;
+    expect(pendiente.referencia, isNull);
+    expect(pendiente.telefono, '987654321');
+  });
+
+  group('celular precargado', () {
+    InvitacionPrevia conTelefono(String telefono) => InvitacionPrevia(
+      distribuidorId: 'd1',
+      distribuidorNombre: 'Licores del Norte',
+      rol: RolMembresia.cliente,
+      negocio: NegocioPrevio(
+        nombreNegocio: 'Bodega Don Pepe',
+        telefono: telefono,
+      ),
+    );
+
+    testWidgets('con guiones llega tal cual y se envía normalizado', (
+      tester,
+    ) async {
+      await abrirRegistro(
+        tester,
+        cuentas: cuentas,
+        invitacion: conTelefono('987-654-321'),
+      );
+      expect(textoDe(tester, 'Celular'), '987-654-321');
+
+      await tester.enterText(campo('Nombre del encargado'), 'José Ramírez');
+      await tester.enterText(campo('Correo'), 'jose@bodega.pe');
+      await tester.enterText(campo('Contraseña'), 'secreta123');
+      await tester.ensureVisible(casilla);
+      await tester.tap(casilla);
+      await tester.pumpAndSettle();
+      await tocarCrear(tester);
+
+      final (datos, pendiente) = cuentas.creaciones.single;
+      expect(datos.telefono, '987654321');
+      expect(pendiente.telefono, '987654321');
+    });
+
+    testWidgets('un fijo llega vacío y no bloquea la creación', (tester) async {
+      await abrirRegistro(
+        tester,
+        cuentas: cuentas,
+        invitacion: conTelefono('(01) 234-5678'),
+      );
+      expect(textoDe(tester, 'Celular'), '');
+
+      await tester.enterText(campo('Nombre del encargado'), 'José Ramírez');
+      await tester.enterText(campo('Correo'), 'jose@bodega.pe');
+      await tester.enterText(campo('Contraseña'), 'secreta123');
+      await tester.ensureVisible(casilla);
+      await tester.tap(casilla);
+      await tester.pumpAndSettle();
+      await tocarCrear(tester);
+
+      final (datos, pendiente) = cuentas.creaciones.single;
+      expect(datos.telefono, isNull);
+      expect(pendiente.telefono, isNull);
+    });
   });
 
   testWidgets('una invitación de personal crea la cuenta sin datos de la '
@@ -346,6 +431,12 @@ void main() {
       await tester.tap(ingresar);
       await tester.pumpAndSettle();
       expect(router.state.matchedLocation, AppRutas.auth);
+      // Lleva el código para canjearlo al ingresar; nunca la contraseña.
+      final extra = router.state.extra;
+      expect(extra, isA<CodigoPorCanjear>());
+      extra as CodigoPorCanjear;
+      expect(extra.codigo, 'AB2CD3E4');
+      expect(extra.distribuidorId, 'd1');
     });
 
     final mensajes = {

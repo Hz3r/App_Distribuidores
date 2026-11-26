@@ -59,6 +59,32 @@ void main() {
       expect(validarTelefono('9876543210'), mensaje);
       expect(validarTelefono('+52 987 654 321'), mensaje);
     });
+
+    test('acepta guiones y paréntesis como separadores', () {
+      const mensaje = 'Escribe un celular de 9 dígitos.';
+      expect(validarTelefono('987-654-321'), isNull);
+      expect(validarTelefono('(+51) 987-654-321'), isNull);
+      expect(validarTelefono('+51 (987) 654 321'), isNull);
+      // Un fijo de Lima no es un celular.
+      expect(validarTelefono('(01) 234-5678'), mensaje);
+      expect(validarTelefono('987.654.321'), mensaje);
+    });
+  });
+
+  group('normalizarTelefono', () {
+    test('deja solo los 9 dígitos, sin prefijo ni separadores', () {
+      expect(normalizarTelefono('987654321'), '987654321');
+      expect(normalizarTelefono('+51 987 654 321'), '987654321');
+      expect(normalizarTelefono('(+51) 987-654-321'), '987654321');
+      expect(normalizarTelefono(' 987-654-321 '), '987654321');
+    });
+
+    test('vacío o inválido da null', () {
+      expect(normalizarTelefono(''), isNull);
+      expect(normalizarTelefono('   '), isNull);
+      expect(normalizarTelefono('(01) 234-5678'), isNull);
+      expect(normalizarTelefono('12345'), isNull);
+    });
   });
 
   group('validarDireccion', () {

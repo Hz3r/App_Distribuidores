@@ -6,6 +6,7 @@ import '../../../config/rutas.dart';
 import '../../../shared/tema_app.dart';
 import '../../../shared/widgets/campo_etiquetado.dart';
 import '../domain/argumentos_registro.dart';
+import '../domain/codigo_por_canjear.dart';
 import '../domain/cuentas_repositorio.dart';
 import '../domain/datos_registro.dart';
 import '../domain/registro_pendiente.dart';
@@ -58,7 +59,10 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
     _negocio.text = negocio?.nombreNegocio ?? '';
     _documento.text = negocio?.documento?.trim() ?? '';
     _documentoEditable = _documento.text.isEmpty;
-    _celular.text = negocio?.telefono ?? '';
+    // Un teléfono que no es celular (un fijo, por ejemplo) llega vacío: la
+    // persona no tiene que corregir un dato que no escribió para registrarse.
+    final telefono = negocio?.telefono ?? '';
+    _celular.text = normalizarTelefono(telefono) != null ? telefono : '';
     _direccion.text = negocio?.direccion ?? '';
   }
 
@@ -204,7 +208,16 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
                   const SizedBox(height: 16),
                   _Fallo(
                     fallo: _fallo,
-                    onIngresar: () => context.push(AppRutas.auth),
+                    // El código viaja al ingreso para canjearlo en cuanto
+                    // haya sesión. La contraseña no.
+                    onIngresar: () => context.push(
+                      AppRutas.auth,
+                      extra: CodigoPorCanjear(
+                        codigo: widget.argumentos.codigo,
+                        distribuidorId:
+                            widget.argumentos.invitacion.distribuidorId,
+                      ),
+                    ),
                   ),
                   FilledButton(
                     onPressed: _enviando ? null : _crear,
@@ -249,10 +262,12 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
       documento: negocio != null && _documentoEditable
           ? _opcional(_documento.text)
           : null,
-      telefono: negocio != null ? _opcional(_celular.text) : null,
+      // Ya validado: 9 dígitos, sin prefijo ni separadores.
+      telefono: negocio != null ? normalizarTelefono(_celular.text) : null,
       direccion: negocio != null ? _opcional(_direccion.text) : null,
-      // No está en el formulario: se conserva la del distribuidor.
-      referencia: negocio?.referencia,
+      // No está en el formulario: `null` deja la del distribuidor sin
+      // cambios. Reenviarla haría fallar todo el guardado si pasa del límite.
+      referencia: null,
     );
     final pendiente = RegistroPendiente(
       codigo: widget.argumentos.codigo,

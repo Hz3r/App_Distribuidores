@@ -19,6 +19,14 @@ Future<void> tocarMas(WidgetTester tester, [int veces = 1]) async {
   }
 }
 
+/// Etiqueta del botón de agregar, con sus líneas unidas por " · " (a lo
+/// angosto el monto pasa a una segunda línea).
+String etiquetaAgregar(WidgetTester tester) => find
+    .descendant(of: find.byType(FilledButton), matching: find.byType(Text))
+    .evaluate()
+    .map((e) => (e.widget as Text).data)
+    .join(' · ');
+
 /// Fila de tramo resaltada.
 Finder tramoResaltado() =>
     find.byWidgetPredicate((w) => w is FilaTramo && w.resaltada);
@@ -77,10 +85,28 @@ void main() {
     expect(find.text('1 – 9'), findsOneWidget);
     expect(find.text('10 – 49'), findsOneWidget);
     expect(find.text('50 o más'), findsOneWidget);
-    expect(find.text('S/ 62.90'), findsOneWidget);
-    expect(find.text('S/ 60.50'), findsOneWidget);
-    expect(find.text('S/ 58.00'), findsOneWidget);
-    expect(find.text('Agregar · S/ 62.90'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(FilaTramo),
+        matching: find.text('S/ 62.90'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(FilaTramo),
+        matching: find.text('S/ 60.50'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(FilaTramo),
+        matching: find.text('S/ 58.00'),
+      ),
+      findsOneWidget,
+    );
+    expect(etiquetaAgregar(tester), 'Agregar · S/ 62.90');
     // Una sola presentación: no hay selector.
     expect(find.byType(ChoiceChip), findsNothing);
     // El detalle se abre por encima de la barra.
@@ -99,12 +125,12 @@ void main() {
 
     await tocarMas(tester, 2);
     expect(cantidad(tester), '3');
-    expect(find.text('Agregar · S/ 188.70'), findsOneWidget);
+    expect(etiquetaAgregar(tester), 'Agregar · S/ 188.70');
 
     await tocarMas(tester, 7);
     expect(cantidad(tester), '10');
     // 10 × 60.50
-    expect(find.text('Agregar · S/ 605.00'), findsOneWidget);
+    expect(etiquetaAgregar(tester), 'Agregar · S/ 605.00');
     expect(tramoResaltado(), findsOneWidget);
     expect(tester.widget<FilaTramo>(tramoResaltado()).tramo.desde, 10);
 
@@ -156,7 +182,7 @@ void main() {
 
     expect(find.text('2 disponibles'), findsOneWidget);
     expect(cantidad(tester), '2');
-    expect(find.text('Agregar · S/ 540.00'), findsOneWidget);
+    expect(etiquetaAgregar(tester), 'Agregar · S/ 540.00');
   });
 
   testWidgets('el stock es del producto: lo que hay de una presentación '
@@ -177,7 +203,7 @@ void main() {
     expect(cantidad(tester), '12');
 
     // Con 12 unidades sueltas más en el carrito ya no cabe otra caja.
-    await tester.tap(find.textContaining('Agregar ·'));
+    await tester.tap(find.byType(FilledButton));
     await tester.pump();
     expect(container.read(carritoActualProvider).cantidadDe('px-u'), 12);
     await dejarPasarAviso(tester);
@@ -187,8 +213,12 @@ void main() {
     // La disponibilidad mostrada es la de la presentación sola.
     expect(find.text('2 disponibles'), findsOneWidget);
     final boton = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Ya tienes todo lo disponible'),
+      find.widgetWithText(
+        FilledButton,
+        'Ya tienes en el carrito todo lo disponible de este producto.',
+      ),
     );
+    expect(find.text('Ya tienes 1 en el carrito.'), findsOneWidget);
     expect(boton.onPressed, isNull);
   });
 
@@ -202,7 +232,8 @@ void main() {
     );
 
     await tocarMas(tester, 2);
-    await tester.tap(find.text('Agregar · S/ 188.70'));
+    expect(etiquetaAgregar(tester), 'Agregar · S/ 188.70');
+    await tester.tap(find.byType(FilledButton));
     await tester.pump();
 
     expect(container.read(carritoActualProvider).cantidadDe('p1-caja'), 3);
@@ -254,4 +285,79 @@ void main() {
 
     expect(router.state.matchedLocation, AppRutas.catalogo);
   });
+
+  testWidgets('con 5 en el carrito y 5 elegidas: tramo y monto de la línea '
+      'sumada', (tester) async {
+    final (:router, :container) = await montarCliente(
+      tester,
+      repositorio: repositorio,
+      ubicacion: AppRutas.detalleProducto('p1'),
+    );
+    container
+        .read(carritoActualProvider.notifier)
+        .agregar('p1-caja', 5, disponible: 340);
+    await tester.pump();
+    expect(find.text('Ya tienes 5 en el carrito.'), findsOneWidget);
+
+    await tocarMas(tester, 4);
+
+    expect(cantidad(tester), '5');
+    expect(tester.widget<FilaTramo>(tramoResaltado()).tramo.desde, 10);
+    // 10 × 60.50 − 5 × 62.90 = 605.00 − 314.50
+    expect(etiquetaAgregar(tester), 'Agregar · S/ 290.50');
+  });
+
+  testWidgets('con el carrito vacío no dice cuánto hay en el carrito', (
+    tester,
+  ) async {
+    await montarCliente(
+      tester,
+      repositorio: repositorio,
+      ubicacion: AppRutas.detalleProducto('p1'),
+    );
+    await tocarMas(tester, 2);
+
+    expect(find.textContaining('en el carrito.'), findsNothing);
+    expect(etiquetaAgregar(tester), 'Agregar · S/ 188.70');
+  });
+
+  for (final ancho in [360.0, 320.0]) {
+    testWidgets('a $ancho de ancho el total se lee completo', (tester) async {
+      repositorio.catalogo = Catalogo(
+        categorias: const [],
+        productos: [
+          producto(
+            'caro',
+            nombre: 'Whisky 18 años',
+            categoriaId: null,
+            stockFisico: 50,
+            presentaciones: [
+              presentacion(
+                'caro-c',
+                productoId: 'caro',
+                nombre: 'Caja x 6',
+                precioBase: 120050,
+              ),
+            ],
+          ),
+        ],
+        preciosLista: const {},
+      );
+      await montarCliente(
+        tester,
+        repositorio: repositorio,
+        ubicacion: AppRutas.detalleProducto('caro'),
+        ancho: ancho,
+      );
+      await tocarMas(tester, 9);
+
+      expect(etiquetaAgregar(tester), 'Agregar · S/ 12,005.00');
+      final monto = find.descendant(
+        of: find.byType(FilledButton),
+        matching: find.textContaining('S/ 12,005.00'),
+      );
+      expectSinRecortar(tester, monto);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

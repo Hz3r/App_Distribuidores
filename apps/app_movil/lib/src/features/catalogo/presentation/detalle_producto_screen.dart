@@ -7,10 +7,10 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../config/rutas.dart';
 import '../../../shared/tema_app.dart';
-import '../../../shared/widgets/barra_cliente.dart';
 import '../../../shared/widgets/boton_circular.dart';
 import '../../carrito/domain/carrito.dart';
 import '../../carrito/presentation/carrito_providers.dart';
+import '../../carrito/presentation/widgets/icono_carrito.dart';
 import '../domain/catalogo.dart';
 import '../domain/disponibilidad.dart';
 import '../domain/precios.dart';
@@ -116,6 +116,19 @@ class _DetalleProductoScreenState extends ConsumerState<DetalleProductoScreen> {
     final maximo = _maximoPara(producto, elegida, carrito);
     final cantidad = maximo <= 0 ? 0 : _cantidad.clamp(1, maximo);
     final precioLista = catalogo.preciosLista[elegida.id];
+    final enCarrito = carrito.cantidadDe(elegida.id);
+    int unitario(int n) => precioUnitario(
+      precioBase: elegida.precioBaseCentimos,
+      precioLista: precioLista,
+      preciosVolumen: elegida.preciosVolumen,
+      cantidad: n,
+    );
+    // La base cobra la línea ya sumada: lo que sube el carrito es el total
+    // de la línea nueva menos el de la que ya tiene.
+    final linea = enCarrito + cantidad;
+    final montoAgregar =
+        linea * unitario(linea) -
+        (enCarrito == 0 ? 0 : enCarrito * unitario(enCarrito));
     return _Vista(
       producto: producto,
       categoria: catalogo.categorias
@@ -136,12 +149,8 @@ class _DetalleProductoScreenState extends ConsumerState<DetalleProductoScreen> {
       ),
       maximo: maximo,
       cantidad: cantidad,
-      precioUnitario: precioUnitario(
-        precioBase: elegida.precioBaseCentimos,
-        precioLista: precioLista,
-        preciosVolumen: elegida.preciosVolumen,
-        cantidad: math.max(cantidad, 1),
-      ),
+      enCarrito: enCarrito,
+      montoAgregar: montoAgregar,
       tramos: tramosDePrecio(
         precioBase: elegida.precioBaseCentimos,
         precioLista: precioLista,
@@ -197,7 +206,8 @@ class _Vista {
     required this.tope,
     required this.maximo,
     required this.cantidad,
-    required this.precioUnitario,
+    required this.enCarrito,
+    required this.montoAgregar,
     required this.tramos,
   });
 
@@ -222,8 +232,15 @@ class _Vista {
   /// Entre 1 y [maximo]; 0 si [maximo] es 0.
   final int cantidad;
 
-  /// Precio unitario para [cantidad].
-  final int precioUnitario;
+  /// Lo que el carrito ya tiene de [elegida].
+  final int enCarrito;
+
+  /// Cuánto sube el carrito al agregar [cantidad], con el precio de la
+  /// línea sumada ([enCarrito] + [cantidad]).
+  final int montoAgregar;
+
+  /// Cantidad con la que se cobrará la línea; decide el tramo resaltado.
+  int get cantidadLinea => math.max(enCarrito + cantidad, 1);
   final List<TramoPrecio> tramos;
 }
 
@@ -375,8 +392,8 @@ class _TarjetaTramos extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Con cantidad 0 (nada más que agregar) se resalta el primero.
-    final cantidad = math.max(vista.cantidad, 1);
+    // El tramo es el de la línea sumada: lo que ya hay más lo elegido.
+    final cantidad = vista.cantidadLinea;
     final unidad = vista.elegida.nombre.toLowerCase();
     return Container(
       padding: const EdgeInsets.all(14),
@@ -409,7 +426,7 @@ class _TarjetaTramos extends StatelessWidget {
 }
 
 /// Una fila de la tarjeta de precios por volumen: el rango y el precio por
-/// [unidad]. [resaltada] marca el tramo de la cantidad elegida.
+/// [unidad]. [resaltada] marca el tramo con el que se cobrará la línea.
 class FilaTramo extends StatelessWidget {
   const FilaTramo({
     required this.tramo,
@@ -487,11 +504,17 @@ class _BarraAgregar extends StatelessWidget {
   Widget build(BuildContext context) {
     final cantidad = vista.cantidad;
     final puede = vista.maximo > 0;
-    final texto = vista.disponible <= 0
-        ? 'Agotado'
-        : !puede
-        ? 'Ya tienes todo lo disponible'
-        : 'Agregar · ${Dinero.formatear(cantidad * vista.precioUnitario)}';
+    final Widget etiqueta;
+    if (vista.disponible <= 0) {
+      etiqueta = const Text('Agotado');
+    } else if (!puede) {
+      etiqueta = const Text(
+        'Ya tienes en el carrito todo lo disponible de este producto.',
+        textAlign: TextAlign.center,
+      );
+    } else {
+      etiqueta = _EtiquetaAgregar(monto: Dinero.formatear(vista.montoAgregar));
+    }
 
     return DecoratedBox(
       decoration: const BoxDecoration(
@@ -501,35 +524,87 @@ class _BarraAgregar extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-          child: Row(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (puede) ...[
-                _SelectorCantidad(
-                  cantidad: cantidad,
-                  alRestar: cantidad > 1
-                      ? () => alCambiarCantidad(cantidad - 1)
-                      : null,
-                  alSumar: cantidad < vista.maximo
-                      ? () => alCambiarCantidad(cantidad + 1)
-                      : null,
+              if (vista.enCarrito > 0) ...[
+                Text(
+                  'Ya tienes ${vista.enCarrito} en el carrito.',
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: ColoresApp.textoSuave),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(height: 8),
               ],
-              Expanded(
-                child: FilledButton(
-                  onPressed: puede ? alAgregar : null,
-                  child: Text(
-                    texto,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+              Row(
+                children: [
+                  if (puede) ...[
+                    _SelectorCantidad(
+                      cantidad: cantidad,
+                      alRestar: cantidad > 1
+                          ? () => alCambiarCantidad(cantidad - 1)
+                          : null,
+                      alSumar: cantidad < vista.maximo
+                          ? () => alCambiarCantidad(cantidad + 1)
+                          : null,
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: puede ? alAgregar : null,
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                      ),
+                      child: etiqueta,
+                    ),
                   ),
-                ),
+                ],
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// "Agregar · S/ X" en una línea si cabe; si no, "Agregar" arriba y el monto
+/// abajo, que se achica antes que cortarse.
+class _EtiquetaAgregar extends StatelessWidget {
+  const _EtiquetaAgregar({required this.monto});
+
+  final String monto;
+
+  @override
+  Widget build(BuildContext context) {
+    final enUnaLinea = 'Agregar · $monto';
+    return LayoutBuilder(
+      builder: (context, restricciones) {
+        final medida = TextPainter(
+          text: TextSpan(
+            text: enUnaLinea,
+            style: DefaultTextStyle.of(context).style,
+          ),
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+          maxLines: 1,
+        )..layout();
+        final cabe = medida.width <= restricciones.maxWidth;
+        medida.dispose();
+        if (cabe) return Text(enUnaLinea, maxLines: 1);
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Agregar', maxLines: 1),
+            FittedBox(fit: BoxFit.scaleDown, child: Text(monto, maxLines: 1)),
+          ],
+        );
+      },
     );
   }
 }
@@ -559,6 +634,7 @@ class _SelectorCantidad extends StatelessWidget {
         children: [
           IconButton(
             tooltip: 'Restar uno',
+            visualDensity: VisualDensity.compact,
             onPressed: alRestar,
             icon: const Icon(Icons.remove),
           ),
@@ -573,6 +649,7 @@ class _SelectorCantidad extends StatelessWidget {
           ),
           IconButton.filled(
             tooltip: 'Sumar uno',
+            visualDensity: VisualDensity.compact,
             onPressed: alSumar,
             style: IconButton.styleFrom(
               backgroundColor: ColoresApp.azul,

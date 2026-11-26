@@ -2,7 +2,7 @@ import 'package:app_movil/src/config/rutas.dart';
 import 'package:app_movil/src/features/carrito/presentation/carrito_providers.dart';
 import 'package:app_movil/src/features/sesion/domain/acceso.dart';
 import 'package:app_movil/src/features/sesion/presentation/control_acceso.dart';
-import 'package:app_movil/src/shared/widgets/barra_cliente.dart';
+import 'package:app_movil/src/router/estructura_cliente.dart';
 import 'package:core/core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

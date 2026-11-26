@@ -9,6 +9,7 @@ import 'package:app_movil/src/router/app_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:material_ui/material_ui.dart';
 
 import '../registro/dobles.dart';
@@ -109,14 +110,16 @@ Catalogo catalogoDePrueba() => Catalogo(
 );
 
 /// Monta la app completa (router, barra y avisos reales) con una bodega
-/// activa y [repositorio], y navega a [ubicacion]. Sin reintentos
+/// activa y [repositorio], y navega a [ubicacion], en un teléfono de [ancho]
+/// puntos lógicos. Sin reintentos
 /// automáticos de Riverpod, para que un error quede a la vista.
 Future<({GoRouter router, ProviderContainer container})> montarCliente(
   WidgetTester tester, {
   required CatalogoRepositorio repositorio,
   String ubicacion = AppRutas.catalogo,
+  double ancho = 390,
 }) async {
-  tester.view.physicalSize = const Size(1170, 2532);
+  tester.view.physicalSize = Size(ancho * 3, 2532);
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
 
@@ -148,4 +151,10 @@ Future<({GoRouter router, ProviderContainer container})> montarCliente(
 Future<void> dejarPasarAviso(WidgetTester tester) async {
   await tester.pump(const Duration(seconds: 10));
   await tester.pumpAndSettle();
+}
+
+/// El texto [finder] se ve completo: no se cortó ni pasó de sus líneas.
+void expectSinRecortar(WidgetTester tester, Finder finder) {
+  final parrafo = tester.renderObject<RenderParagraph>(finder);
+  expect(parrafo.didExceedMaxLines, isFalse, reason: '$finder se recorta');
 }

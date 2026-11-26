@@ -183,6 +183,9 @@ void main() {
       repositorio: repositorio,
     );
     await desplazarHasta(tester, 'Ron Blanco 1 L');
+    // El "+" queda más abajo que el nombre.
+    await tester.ensureVisible(masDe('Ron Blanco 1 L'));
+    await tester.pumpAndSettle();
 
     expect(
       tester.widget<IconButton>(masDe('Ron Blanco 1 L')).onPressed,
@@ -306,4 +309,58 @@ void main() {
     expect(repositorio.cargas, 2);
     expect(find.text('4 productos'), findsOneWidget);
   });
+
+  testWidgets('cada "+" dice qué producto agrega', (tester) async {
+    await montarCliente(tester, repositorio: repositorio);
+
+    expect(
+      find.byTooltip('Agregar Cerveza Rubia 630 ml al carrito'),
+      findsOneWidget,
+    );
+    expect(
+      find.byTooltip('Agregar Cerveza Negra 330 ml al carrito'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a 320 de ancho los controles y la cuenta no se recortan', (
+    tester,
+  ) async {
+    await montarCliente(tester, repositorio: repositorio, ancho: 320);
+
+    for (final texto in ['Ordenar', 'Marca', '4 productos']) {
+      expectSinRecortar(tester, find.text(texto));
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final (precio, texto) in [(6290, 'S/ 62.90'), (123490, 'S/ 1,234.90')]) {
+    testWidgets('a 320 de ancho el precio $texto se ve completo', (
+      tester,
+    ) async {
+      repositorio.catalogo = Catalogo(
+        categorias: const [],
+        productos: [
+          producto(
+            'p',
+            nombre: 'Vino Reserva',
+            categoriaId: null,
+            presentaciones: [
+              presentacion(
+                'p-c',
+                productoId: 'p',
+                nombre: 'Caja x 12',
+                precioBase: precio,
+              ),
+            ],
+          ),
+        ],
+        preciosLista: const {},
+      );
+      await montarCliente(tester, repositorio: repositorio, ancho: 320);
+
+      expectSinRecortar(tester, find.text(texto));
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

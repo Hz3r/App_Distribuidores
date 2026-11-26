@@ -270,73 +270,69 @@ class _FilaControles extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ordenar = PopupMenuButton<OrdenCatalogo>(
+      tooltip: 'Ordenar',
+      initialValue: filtros.orden,
+      onSelected: (orden) => alCambiar(filtros.copyWith(orden: orden)),
+      itemBuilder: (_) => [
+        for (final (orden, texto) in const [
+          (OrdenCatalogo.nombre, 'Nombre'),
+          (OrdenCatalogo.precioMenor, 'Precio: menor a mayor'),
+          (OrdenCatalogo.precioMayor, 'Precio: mayor a menor'),
+        ])
+          CheckedPopupMenuItem(
+            value: orden,
+            checked: filtros.orden == orden,
+            child: Text(texto),
+          ),
+      ],
+      child: const _BotonMenu(texto: 'Ordenar'),
+    );
+    final marca = PopupMenuButton<String>(
+      tooltip: 'Marca',
+      onSelected: (marca) => alCambiar(
+        marca == _todas
+            ? filtros.copyWith(limpiarMarca: true)
+            : filtros.copyWith(marca: marca),
+      ),
+      itemBuilder: (_) => [
+        CheckedPopupMenuItem(
+          value: _todas,
+          checked: filtros.marca == null,
+          child: const Text('Todas'),
+        ),
+        for (final marca in marcas)
+          CheckedPopupMenuItem(
+            value: marca,
+            checked: filtros.marca == marca,
+            child: Text(marca),
+          ),
+      ],
+      // La marca elegida queda a la vista en el botón.
+      child: _BotonMenu(
+        texto: filtros.marca ?? 'Marca',
+        activo: filtros.marca != null,
+      ),
+    );
+
+    // En una línea: los menús a la izquierda y la cuenta a la derecha. Si
+    // no caben, pasan a otra línea en vez de recortarse.
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      // Con letra grande los tres se encogen (con puntos suspensivos) en vez
-      // de desbordarse.
-      child: Row(
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        runSpacing: 8,
         children: [
-          Flexible(
-            child: PopupMenuButton<OrdenCatalogo>(
-              tooltip: 'Ordenar',
-              initialValue: filtros.orden,
-              onSelected: (orden) => alCambiar(filtros.copyWith(orden: orden)),
-              itemBuilder: (_) => [
-                for (final (orden, texto) in const [
-                  (OrdenCatalogo.nombre, 'Nombre'),
-                  (OrdenCatalogo.precioMenor, 'Precio: menor a mayor'),
-                  (OrdenCatalogo.precioMayor, 'Precio: mayor a menor'),
-                ])
-                  CheckedPopupMenuItem(
-                    value: orden,
-                    checked: filtros.orden == orden,
-                    child: Text(texto),
-                  ),
-              ],
-              child: const _BotonMenu(texto: 'Ordenar'),
-            ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [ordenar, if (marcas.isNotEmpty) marca],
           ),
-          const SizedBox(width: 8),
-          // La marca toma el espacio libre y deja la cuenta a la derecha.
-          Expanded(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: marcas.isEmpty
-                  ? null
-                  : PopupMenuButton<String>(
-                      tooltip: 'Marca',
-                      onSelected: (marca) => alCambiar(
-                        marca == _todas
-                            ? filtros.copyWith(limpiarMarca: true)
-                            : filtros.copyWith(marca: marca),
-                      ),
-                      itemBuilder: (_) => [
-                        CheckedPopupMenuItem(
-                          value: _todas,
-                          checked: filtros.marca == null,
-                          child: const Text('Todas'),
-                        ),
-                        for (final marca in marcas)
-                          CheckedPopupMenuItem(
-                            value: marca,
-                            checked: filtros.marca == marca,
-                            child: Text(marca),
-                          ),
-                      ],
-                      // La marca elegida queda a la vista en el botón.
-                      child: _BotonMenu(
-                        texto: filtros.marca ?? 'Marca',
-                        activo: filtros.marca != null,
-                      ),
-                    ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
             child: Text(
               cuenta == 1 ? '1 producto' : '$cuenta productos',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall
                   ?.copyWith(color: ColoresApp.textoSuave),
             ),
@@ -395,7 +391,7 @@ class _Cuadricula extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final alto = 164 + MediaQuery.textScalerOf(context).scale(116);
+    final alto = 164 + MediaQuery.textScalerOf(context).scale(140);
     return GridView.builder(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),

@@ -95,32 +95,36 @@ class TarjetaProducto extends ConsumerWidget {
                     const SizedBox(height: 4),
                     IndicadorDisponibilidad(disponible: item.disponible),
                     const SizedBox(height: 8),
+                    // El precio va solo en su línea y se achica si no cabe:
+                    // un precio recortado se leería como otro número.
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text(
+                        Dinero.formatear(item.precioCentimos),
+                        maxLines: 1,
+                        style: textos.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
                     Row(
                       children: [
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                Dinero.formatear(item.precioCentimos),
-                                maxLines: 1,
-                                style: textos.bodyLarge?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              Text(
-                                'por ${principal.nombre.toLowerCase()}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: textos.bodySmall?.copyWith(
-                                  color: ColoresApp.textoSuave,
-                                ),
-                              ),
-                            ],
+                          child: Text(
+                            'por ${principal.nombre.toLowerCase()}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: textos.bodySmall?.copyWith(
+                              color: ColoresApp.textoSuave,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 6),
-                        _BotonMas(onPressed: puedeAgregar ? agregar : null),
+                        _BotonMas(
+                          tooltip: 'Agregar ${producto.nombre} al carrito',
+                          onPressed: puedeAgregar ? agregar : null,
+                        ),
                       ],
                     ),
                   ],
@@ -188,14 +192,15 @@ void avisarAgregadoAlCarrito(BuildContext context) {
 }
 
 class _BotonMas extends StatelessWidget {
-  const _BotonMas({required this.onPressed});
+  const _BotonMas({required this.tooltip, required this.onPressed});
 
+  final String tooltip;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     return IconButton.filled(
-      tooltip: 'Agregar al carrito',
+      tooltip: tooltip,
       onPressed: onPressed,
       style: IconButton.styleFrom(
         backgroundColor: ColoresApp.azul,

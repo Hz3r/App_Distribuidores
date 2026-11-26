@@ -21,10 +21,10 @@ import '../features/seleccion_distribuidor/presentation/seleccion_distribuidor_s
 import '../features/sesion/presentation/cargando_screen.dart';
 import '../features/sesion/presentation/control_acceso.dart';
 import '../features/sesion/presentation/error_acceso_screen.dart';
-import '../shared/widgets/barra_cliente.dart';
 import '../shared/widgets/pantalla_placeholder.dart';
 import '../shared/widgets/sin_rol_screen.dart';
 import 'destino.dart';
+import 'estructura_cliente.dart';
 
 part 'app_router.g.dart';
 

@@ -418,4 +418,26 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  for (final (ancho, escala) in [(320.0, 1.0), (320.0, 1.3), (390.0, 1.0)]) {
+    testWidgets('a $ancho de ancho y letra ×$escala los toques miden al '
+        'menos 48×48 y nada se desborda', (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = escala;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final manejador = tester.ensureSemantics();
+      await montarCliente(
+        tester,
+        repositorio: repositorio,
+        ubicacion: AppRutas.detalleProducto('p1'),
+        ancho: ancho,
+      );
+      // "−" habilitado también.
+      await tocarMas(tester);
+
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      expect(find.widgetWithIcon(IconButton, Icons.remove), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      manejador.dispose();
+    });
+  }
 }

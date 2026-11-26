@@ -625,7 +625,8 @@ class _EtiquetaAgregar extends StatelessWidget {
   }
 }
 
-/// Píldora con "−", la cantidad y "+".
+/// Píldora con "−", la cantidad y "+". Cada botón se ve de 40 y se toca en
+/// 48×48; la píldora no lleva relleno propio para no crecer.
 class _SelectorCantidad extends StatelessWidget {
   const _SelectorCantidad({
     required this.cantidad,
@@ -640,7 +641,6 @@ class _SelectorCantidad extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         border: Border.all(color: ColoresApp.borde),
         borderRadius: BorderRadius.circular(999),
@@ -650,7 +650,6 @@ class _SelectorCantidad extends StatelessWidget {
         children: [
           IconButton(
             tooltip: 'Restar uno',
-            visualDensity: VisualDensity.compact,
             onPressed: alRestar,
             icon: const Icon(Icons.remove),
           ),
@@ -665,7 +664,6 @@ class _SelectorCantidad extends StatelessWidget {
           ),
           IconButton.filled(
             tooltip: 'Sumar uno',
-            visualDensity: VisualDensity.compact,
             onPressed: alSumar,
             style: IconButton.styleFrom(
               backgroundColor: ColoresApp.azul,

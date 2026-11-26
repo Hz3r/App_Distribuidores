@@ -16,7 +16,7 @@ class CatalogoRepositorioSupabase implements CatalogoRepositorio {
   @override
   Future<Catalogo> cargar({
     required String distribuidorId,
-    String? listaPreciosId,
+    required bool esCliente,
   }) async {
     final (categorias, productos, preciosLista) = await (
       _cliente
@@ -29,7 +29,7 @@ class CatalogoRepositorioSupabase implements CatalogoRepositorio {
           .select('*, presentaciones(*, precios_volumen(*))')
           .eq('distribuidor_id', distribuidorId)
           .eq('activo', true),
-      _preciosLista(distribuidorId, listaPreciosId),
+      _preciosLista(distribuidorId, esCliente),
     ).wait;
     return Catalogo.desde(
       categorias: categorias.map(Categoria.fromJson).toList(),
@@ -38,16 +38,18 @@ class CatalogoRepositorioSupabase implements CatalogoRepositorio {
     );
   }
 
+  /// Solo una bodega tiene lista. Sin filtrar por `lista_precios_id`: la RLS
+  /// ya limita las filas a la lista vigente y activa de su bodega, así que
+  /// un cambio de lista durante la sesión se ve al recargar.
   Future<List<PrecioLista>> _preciosLista(
     String distribuidorId,
-    String? listaPreciosId,
+    bool esCliente,
   ) async {
-    if (listaPreciosId == null) return const [];
+    if (!esCliente) return const [];
     final filas = await _cliente
         .from('precios_lista')
         .select()
-        .eq('distribuidor_id', distribuidorId)
-        .eq('lista_precios_id', listaPreciosId);
+        .eq('distribuidor_id', distribuidorId);
     return filas.map(PrecioLista.fromJson).toList();
   }
 }

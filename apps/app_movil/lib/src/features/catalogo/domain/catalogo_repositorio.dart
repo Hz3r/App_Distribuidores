@@ -4,9 +4,11 @@ import 'catalogo.dart';
 /// muestra, a qué precio) están en las funciones puras de `domain`.
 abstract interface class CatalogoRepositorio {
   /// Categorías, productos con sus presentaciones y precios por volumen, y,
-  /// si [listaPreciosId] no es null, los precios de esa lista.
+  /// si [esCliente], los precios de la lista vigente de su bodega. La lista
+  /// no se pide por id: la RLS da a la bodega solo su lista actual y activa,
+  /// aunque el admin la haya cambiado durante la sesión.
   Future<Catalogo> cargar({
     required String distribuidorId,
-    String? listaPreciosId,
+    required bool esCliente,
   });
 }

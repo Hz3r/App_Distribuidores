@@ -21,16 +21,16 @@ CatalogoRepositorio catalogoRepositorio(Ref ref) =>
 /// Catálogo del distribuidor activo con los precios de la lista de la bodega.
 ///
 /// Se guarda en memoria mientras dure la sesión (inicio, catálogo y detalle
-/// leen el mismo) y se vuelve a cargar al cambiar de distribuidor o de lista;
+/// leen el mismo) y se vuelve a cargar al cambiar de distribuidor o de rol;
 /// `ref.invalidate(catalogoProvider)` lo refresca. Sin membresía activa
 /// falla con [StateError].
 @Riverpod(keepAlive: true)
 Future<Catalogo> catalogo(Ref ref) async {
-  final (:distribuidorId, :listaPreciosId) = ref.watch(
+  final (:distribuidorId, :esCliente) = ref.watch(
     membresiaActivaProvider.select(
       (m) => (
         distribuidorId: m?.distribuidorId,
-        listaPreciosId: m?.clienteNegocio?.listaPreciosId,
+        esCliente: m?.rol == RolMembresia.cliente,
       ),
     ),
   );
@@ -39,7 +39,7 @@ Future<Catalogo> catalogo(Ref ref) async {
   }
   return ref
       .watch(catalogoRepositorioProvider)
-      .cargar(distribuidorId: distribuidorId, listaPreciosId: listaPreciosId);
+      .cargar(distribuidorId: distribuidorId, esCliente: esCliente);
 }
 
 /// Filtros elegidos en el catálogo. Se conservan sin pantallas que los

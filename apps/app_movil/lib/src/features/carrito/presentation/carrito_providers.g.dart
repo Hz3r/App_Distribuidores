@@ -47,7 +47,7 @@ final class CarritoActualProvider
   }
 }
 
-String _$carritoActualHash() => r'd6f05449f1ec17938b7fccb93a65bad083877428';
+String _$carritoActualHash() => r'016096bef48c8f617efef95535ab28269b2fc196';
 
 /// Carrito de la sesión, solo en memoria. Se vacía cuando cambia la
 /// membresía activa: otro distribuidor, otra persona o cierre de sesión.

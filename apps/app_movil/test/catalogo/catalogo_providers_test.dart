@@ -15,14 +15,14 @@ import '../sesion/acceso_fijo.dart';
 /// Doble de [CatalogoRepositorio]: anota cada carga y devuelve un catálogo
 /// vacío.
 class CatalogoRepositorioDoble implements CatalogoRepositorio {
-  final cargas = <(String, String?)>[];
+  final cargas = <(String, bool)>[];
 
   @override
   Future<Catalogo> cargar({
     required String distribuidorId,
-    String? listaPreciosId,
+    required bool esCliente,
   }) async {
-    cargas.add((distribuidorId, listaPreciosId));
+    cargas.add((distribuidorId, esCliente));
     return const Catalogo(categorias: [], productos: [], preciosLista: {});
   }
 }
@@ -47,9 +47,12 @@ void main() {
 
   final d1 = _conLista('d1', 'lista-1');
   final d2 = _conLista('d2', null);
+  final repartidor = membresia('d3', rol: RolMembresia.repartidor);
 
   setUp(() {
-    control = ControlAccesoFijo(ConAcceso(membresias: [d1, d2], activa: d1));
+    control = ControlAccesoFijo(
+      ConAcceso(membresias: [d1, d2, repartidor], activa: d1),
+    );
     repositorio = CatalogoRepositorioDoble();
     container = ProviderContainer(
       overrides: [
@@ -84,10 +87,32 @@ void main() {
   });
 
   group('catalogo', () {
-    test('carga el distribuidor activo con la lista de su bodega', () async {
+    test('carga el distribuidor activo como cliente', () async {
       await container.read(catalogoProvider.future);
 
-      expect(repositorio.cargas, [('d1', 'lista-1')]);
+      expect(repositorio.cargas, [('d1', true)]);
+    });
+
+    test('un repartidor carga sin precios de lista', () async {
+      control.fijar(
+        ConAcceso(membresias: [d1, d2, repartidor], activa: repartidor),
+      );
+      await container.read(catalogoProvider.future);
+
+      expect(repositorio.cargas, [('d3', false)]);
+    });
+
+    test('no depende de la lista guardada en la membresía (la RLS da la '
+        'vigente): cambiarla no recarga', () async {
+      container.listen(catalogoProvider, (_, _) {});
+      await container.read(catalogoProvider.future);
+
+      control.fijar(
+        ConAcceso(membresias: [d1, d2], activa: _conLista('d1', 'otra')),
+      );
+      await container.read(catalogoProvider.future);
+
+      expect(repositorio.cargas, [('d1', true)]);
     });
 
     test('se recarga al cambiar de distribuidor', () async {
@@ -97,7 +122,7 @@ void main() {
       control.fijar(ConAcceso(membresias: [d1, d2], activa: d2));
       await container.read(catalogoProvider.future);
 
-      expect(repositorio.cargas, [('d1', 'lista-1'), ('d2', null)]);
+      expect(repositorio.cargas, [('d1', true), ('d2', true)]);
     });
 
     test('ref.invalidate lo vuelve a cargar', () async {

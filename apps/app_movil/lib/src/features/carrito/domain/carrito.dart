@@ -5,7 +5,13 @@ import 'dart:math' as math;
 /// Supabase. Nunca guarda más de lo disponible que se le indica ni líneas
 /// en cero.
 class Carrito {
-  const Carrito([this._cantidades = const {}]);
+  /// Carrito sin líneas. Es la única forma de crear uno desde fuera: las
+  /// líneas solo entran por [agregar] y [fijar], que respetan el invariante.
+  const Carrito.vacio() : _cantidades = const {};
+
+  /// [_cantidades] debe ser un mapa nuevo, propio de este carrito, sin
+  /// cantidades en cero ni negativas.
+  const Carrito._(this._cantidades);
 
   final Map<String, int> _cantidades;
 
@@ -41,15 +47,15 @@ class Carrito {
   }) {
     final nueva = math.min(cantidad, disponible);
     if (nueva <= 0) return quitar(presentacionId);
-    return Carrito({..._cantidades, presentacionId: nueva});
+    return Carrito._({..._cantidades, presentacionId: nueva});
   }
 
   Carrito quitar(String presentacionId) {
     if (!_cantidades.containsKey(presentacionId)) return this;
-    return Carrito({..._cantidades}..remove(presentacionId));
+    return Carrito._({..._cantidades}..remove(presentacionId));
   }
 
-  Carrito vaciar() => const Carrito();
+  Carrito vaciar() => const Carrito.vacio();
 
   @override
   bool operator ==(Object other) =>

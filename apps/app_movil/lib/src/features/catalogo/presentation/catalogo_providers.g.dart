@@ -73,7 +73,7 @@ String _$catalogoRepositorioHash() =>
 /// Catálogo del distribuidor activo con los precios de la lista de la bodega.
 ///
 /// Se guarda en memoria mientras dure la sesión (inicio, catálogo y detalle
-/// leen el mismo) y se vuelve a cargar al cambiar de distribuidor o de lista;
+/// leen el mismo) y se vuelve a cargar al cambiar de distribuidor o de rol;
 /// `ref.invalidate(catalogoProvider)` lo refresca. Sin membresía activa
 /// falla con [StateError].
 
@@ -83,7 +83,7 @@ final catalogoProvider = CatalogoProvider._();
 /// Catálogo del distribuidor activo con los precios de la lista de la bodega.
 ///
 /// Se guarda en memoria mientras dure la sesión (inicio, catálogo y detalle
-/// leen el mismo) y se vuelve a cargar al cambiar de distribuidor o de lista;
+/// leen el mismo) y se vuelve a cargar al cambiar de distribuidor o de rol;
 /// `ref.invalidate(catalogoProvider)` lo refresca. Sin membresía activa
 /// falla con [StateError].
 
@@ -94,7 +94,7 @@ final class CatalogoProvider
   /// Catálogo del distribuidor activo con los precios de la lista de la bodega.
   ///
   /// Se guarda en memoria mientras dure la sesión (inicio, catálogo y detalle
-  /// leen el mismo) y se vuelve a cargar al cambiar de distribuidor o de lista;
+  /// leen el mismo) y se vuelve a cargar al cambiar de distribuidor o de rol;
   /// `ref.invalidate(catalogoProvider)` lo refresca. Sin membresía activa
   /// falla con [StateError].
   CatalogoProvider._()
@@ -122,7 +122,7 @@ final class CatalogoProvider
   }
 }
 
-String _$catalogoHash() => r'89c8cf2c3bb0a2d8bb4c1b342899fbfdc490d4af';
+String _$catalogoHash() => r'43da857509b67a57b911653df7fda7f0bfd2aca3';
 
 /// Filtros elegidos en el catálogo. Se conservan sin pantallas que los
 /// escuchen (el inicio elige una categoría antes de abrir el catálogo) y

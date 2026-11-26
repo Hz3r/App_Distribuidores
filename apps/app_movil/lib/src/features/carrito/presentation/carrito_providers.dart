@@ -14,7 +14,7 @@ class CarritoActual extends _$CarritoActual {
   Carrito build() {
     // Releer la misma membresía (mismo id) no vacía el carrito.
     ref.watch(membresiaActivaProvider.select((m) => m?.id));
-    return const Carrito();
+    return const Carrito.vacio();
   }
 
   void agregar(

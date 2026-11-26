@@ -167,6 +167,25 @@ void main() {
       );
     });
 
+    test('Mi cuenta: entran el admin y el vendedor, también con "desde"', () {
+      for (final m in [admin, vendedor]) {
+        expect(
+          destinoRedireccion(acceso: accesoCon(m), ubicacion: AppRutas.cuenta),
+          isNull,
+          reason: m.rol.name,
+        );
+        expect(
+          destinoRedireccion(
+            acceso: accesoCon(m),
+            ubicacion: AppRutas.cargando,
+            desde: AppRutas.cuenta,
+          ),
+          AppRutas.cuenta,
+          reason: m.rol.name,
+        );
+      }
+    });
+
     test('elegir distribuidor solo se queda si hay más de uno', () {
       expect(
         destinoRedireccion(

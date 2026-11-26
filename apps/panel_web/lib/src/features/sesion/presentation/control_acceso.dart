@@ -107,6 +107,22 @@ class ControlAcceso extends _$ControlAcceso {
         .guardarDistribuidorPreferido(distribuidorId);
   }
 
+  /// Reemplaza los datos de [distribuidor] en las membresías ya cargadas,
+  /// sin volver a leerlas: por ejemplo, tras guardar su configuración, para
+  /// que el menú muestre al instante el nombre y el logo nuevos.
+  void actualizarDistribuidor(Distribuidor distribuidor) {
+    final actual = state;
+    if (actual is! ConAcceso) return;
+    Membresia conNuevo(Membresia m) => m.distribuidorId == distribuidor.id
+        ? m.copyWith(distribuidor: distribuidor)
+        : m;
+    final activa = actual.activa;
+    state = ConAcceso(
+      membresias: [for (final m in actual.membresias) conNuevo(m)],
+      activa: activa == null ? null : conNuevo(activa),
+    );
+  }
+
   /// Cierra la sesión. Devuelve `false` si falló; el error se registra y no
   /// se propaga.
   Future<bool> cerrarSesion() async {

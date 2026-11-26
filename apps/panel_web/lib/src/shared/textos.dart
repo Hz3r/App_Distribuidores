@@ -16,6 +16,14 @@ String estadoDistribuidorLegible(EstadoDistribuidor estado) => switch (estado) {
   EstadoDistribuidor.cancelado => 'Cancelado',
 };
 
+/// Estado de la suscripción al plan para mostrar.
+String estadoSuscripcionLegible(EstadoSuscripcion estado) => switch (estado) {
+  EstadoSuscripcion.prueba => 'En prueba',
+  EstadoSuscripcion.activa => 'Activa',
+  EstadoSuscripcion.vencida => 'Vencida',
+  EstadoSuscripcion.cancelada => 'Cancelada',
+};
+
 /// Estado de un pedido para mostrar.
 String estadoPedidoLegible(EstadoPedido estado) => switch (estado) {
   EstadoPedido.recibido => 'Por confirmar',

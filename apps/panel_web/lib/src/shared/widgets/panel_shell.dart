@@ -155,6 +155,7 @@ class _MenuLateral extends ConsumerWidget {
             children: [
               _Marca(
                 nombre: distribuidor?.nombreVisible ?? 'Panel',
+                logoUrl: distribuidor?.configTema.logoUrl,
                 estado: distribuidor == null
                     ? null
                     : estadoDistribuidorLegible(distribuidor.estado),
@@ -180,7 +181,9 @@ class _MenuLateral extends ConsumerWidget {
                   padding: EdgeInsets.zero,
                   children: [
                     for (final seccion in seccionesPanel)
-                      if (rol != null && seccion.visiblePara(rol))
+                      if (rol != null &&
+                          seccion.enMenu &&
+                          seccion.visiblePara(rol))
                         _ItemMenu(
                           seccion: seccion,
                           activo: seccion == actual,
@@ -193,6 +196,8 @@ class _MenuLateral extends ConsumerWidget {
               _Usuario(
                 correo: correo,
                 rol: rol == null ? null : rolLegible(rol),
+                activo: actual?.ruta == AppRutas.cuenta,
+                alAbrirCuenta: () => ir(AppRutas.cuenta),
                 alCerrarSesion: () => cerrarSesionConAviso(context, ref),
               ),
             ],
@@ -206,32 +211,52 @@ class _MenuLateral extends ConsumerWidget {
 class _Marca extends StatelessWidget {
   const _Marca({
     required this.nombre,
+    required this.logoUrl,
     required this.estado,
     required this.alCambiar,
   });
 
   final String nombre;
+  final String? logoUrl;
   final String? estado;
   final VoidCallback? alCambiar;
 
   @override
   Widget build(BuildContext context) {
     final estado = this.estado;
+    final logoUrl = this.logoUrl;
+    const icono = Icon(
+      Icons.storefront_outlined,
+      size: 20,
+      color: ColoresPanel.blanco,
+    );
     final fila = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Row(
         children: [
           Container(
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              color: ColoresPanel.acento500,
+              color: logoUrl == null
+                  ? ColoresPanel.acento500
+                  : ColoresPanel.blanco,
               borderRadius: BorderRadius.circular(10),
             ),
-            padding: const EdgeInsets.all(8),
-            child: const Icon(
-              Icons.storefront_outlined,
-              size: 20,
-              color: ColoresPanel.blanco,
-            ),
+            padding: EdgeInsets.all(logoUrl == null ? 8 : 3),
+            clipBehavior: Clip.antiAlias,
+            child: logoUrl == null
+                ? icono
+                : Image.network(
+                    logoUrl,
+                    fit: BoxFit.contain,
+                    semanticLabel: 'Logo de $nombre',
+                    // Si el logo no carga, el ícono de siempre.
+                    errorBuilder: (_, _, _) => const ColoredBox(
+                      color: ColoresPanel.acento500,
+                      child: Center(child: icono),
+                    ),
+                  ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -344,11 +369,17 @@ class _Usuario extends StatelessWidget {
   const _Usuario({
     required this.correo,
     required this.rol,
+    required this.activo,
+    required this.alAbrirCuenta,
     required this.alCerrarSesion,
   });
 
   final String? correo;
   final String? rol;
+
+  /// `true` si Mi cuenta es la sección abierta.
+  final bool activo;
+  final VoidCallback alAbrirCuenta;
   final VoidCallback alCerrarSesion;
 
   @override
@@ -360,48 +391,68 @@ class _Usuario extends StatelessWidget {
         : correo[0].toUpperCase();
 
     return Material(
-      color: ColoresPanel.primario700,
+      color: activo ? ColoresPanel.primario500 : ColoresPanel.primario700,
       borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+        padding: const EdgeInsets.all(4),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: ColoresPanel.primario500,
-              child: Text(
-                inicial,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: ColoresPanel.blanco,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    correo ?? 'Sesión iniciada',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: ColoresPanel.blanco,
-                    ),
-                  ),
-                  if (rol != null)
-                    Text(
-                      rol,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: ColoresPanel.neutro300,
+              child: Tooltip(
+                message: 'Mi cuenta',
+                child: Semantics(
+                  button: true,
+                  selected: activo,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: alAbrirCuenta,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundColor: ColoresPanel.primario500,
+                            child: Text(
+                              inicial,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: ColoresPanel.blanco,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  correo ?? 'Sesión iniciada',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: ColoresPanel.blanco,
+                                  ),
+                                ),
+                                if (rol != null)
+                                  Text(
+                                    rol,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: ColoresPanel.neutro300,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                ],
+                  ),
+                ),
               ),
             ),
             IconButton(

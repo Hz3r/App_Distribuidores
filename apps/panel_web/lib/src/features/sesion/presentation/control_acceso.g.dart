@@ -190,7 +190,7 @@ final class ControlAccesoProvider
   }
 }
 
-String _$controlAccesoHash() => r'4f7115f652b6e0954a7aa32c338f5bfb158da63d';
+String _$controlAccesoHash() => r'a3db1f0f238b7b06733d6e99963595725c16a4d6';
 
 /// Acceso de la persona al panel: decide con qué distribuidor y rol entra
 /// según sus membresías. La redirección la hace el router leyendo este estado.

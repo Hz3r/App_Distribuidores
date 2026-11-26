@@ -1,6 +1,7 @@
 import 'package:core/core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:panel_web/src/config/rutas.dart';
 import 'package:panel_web/src/config/tema_panel.dart';
@@ -112,6 +113,83 @@ void main() {
 
     expect(
       find.textContaining('tus clientes no pueden hacer pedidos nuevos'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Mi cuenta no está en la lista del menú: la abre la tarjeta '
+      'de la persona', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    GoRoute ruta(String camino) => GoRoute(
+      path: camino,
+      builder: (_, state) => PanelShell(
+        ubicacion: state.matchedLocation,
+        child: Text('sección $camino'),
+      ),
+    );
+    final router = GoRouter(
+      initialLocation: AppRutas.pedidos,
+      routes: [ruta(AppRutas.pedidos), ruta(AppRutas.cuenta)],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          controlAccesoProvider.overrideWith(
+            () => ControlAccesoFalso(
+              accesoCon(membresia('d1', rol: RolMembresia.vendedor)),
+            ),
+          ),
+          autenticacionProvider.overrideWithValue(AutenticacionDoble()),
+        ],
+        child: MaterialApp.router(theme: temaPanel(), routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Mi cuenta'), findsNothing);
+
+    await tester.tap(find.byTooltip('Mi cuenta'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('sección ${AppRutas.cuenta}'), findsOneWidget);
+    expect(
+      tester.getSemantics(find.bySemanticsLabel(RegExp('admin@ejemplo.com'))),
+      isSemantics(isSelected: true, isButton: true),
+    );
+  });
+
+  testWidgets('con logo, el menú lo muestra en lugar del ícono', (
+    tester,
+  ) async {
+    final m = membresia('d1');
+    await montar(
+      tester,
+      accesoCon(
+        m.copyWith(
+          distribuidor: m.distribuidor!.copyWith(
+            configTema: const ConfigTema(
+              nombre: 'Licores',
+              logoUrl: 'https://demo.supabase.co/logo.png',
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Licores'), findsOneWidget);
+    expect(
+      tester.widget<Image>(find.byType(Image)).semanticLabel,
+      'Logo de Licores',
+    );
+    // Sin red en las pruebas el logo no carga: queda el ícono de siempre.
+    expect(
+      find.descendant(
+        of: find.byType(Image),
+        matching: find.byIcon(Icons.storefront_outlined),
+      ),
       findsOneWidget,
     );
   });

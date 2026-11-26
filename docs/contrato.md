@@ -651,6 +651,12 @@ Se guarda en `distribuidores.config_tema` (jsonb):
 
 - Colores en `#RRGGBB`. `ThemeBuilder.desde()` rechaza otros formatos con `FormatException`.
 - `logo_url` puede ser `null`.
+- El panel sube el logo al bucket `catalogo` en
+  `<distribuidor_id>/marca/logo-<milisegundos>.<png|jpg|webp>` (PNG, JPG o WebP de hasta 2 MB) y
+  guarda su URL pública en `logo_url`. Cada logo tiene un nombre nuevo, así la app no muestra una
+  copia vieja en caché; al reemplazarlo o quitarlo, el panel borra el archivo anterior.
+- El panel valida `nombre` (hasta 80 caracteres; vacío = se usa `distribuidores.nombre`) y los
+  colores en `#RRGGBB` mayúsculas antes de guardar. La BD no revisa el contenido del JSON.
 
 ---
 

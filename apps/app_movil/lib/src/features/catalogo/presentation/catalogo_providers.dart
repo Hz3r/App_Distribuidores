@@ -24,8 +24,9 @@ CatalogoRepositorio catalogoRepositorio(Ref ref) =>
 /// Se guarda en memoria mientras dure la sesión (inicio, catálogo y detalle
 /// leen el mismo) y se vuelve a cargar al cambiar de distribuidor o de rol;
 /// `ref.invalidate(catalogoProvider)` lo refresca. Sin membresía activa
-/// falla con [StateError].
-@Riverpod(keepAlive: true)
+/// falla con [StateError]. Sin reintentos automáticos: un fallo se ve de
+/// inmediato con "Reintentar".
+@Riverpod(keepAlive: true, retry: sinReintentos)
 Future<Catalogo> catalogo(Ref ref) async {
   final (:distribuidorId, :esCliente) = ref.watch(
     membresiaActivaProvider.select(

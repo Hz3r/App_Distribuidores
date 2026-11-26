@@ -129,7 +129,8 @@ String _$relojHash() => r'4063b20e2a3a094255407b57b040e6b6d8b67540';
 ///
 /// Se recalcula al cambiar de distribuidor o de bodega;
 /// `ref.invalidate(resumenComprasProvider)` lo refresca. Sin una membresía de
-/// bodega activa falla con [StateError].
+/// bodega activa falla con [StateError]. Sin reintentos automáticos: un
+/// fallo se ve de inmediato con "Reintentar".
 
 @ProviderFor(resumenCompras)
 final resumenComprasProvider = ResumenComprasProvider._();
@@ -138,7 +139,8 @@ final resumenComprasProvider = ResumenComprasProvider._();
 ///
 /// Se recalcula al cambiar de distribuidor o de bodega;
 /// `ref.invalidate(resumenComprasProvider)` lo refresca. Sin una membresía de
-/// bodega activa falla con [StateError].
+/// bodega activa falla con [StateError]. Sin reintentos automáticos: un
+/// fallo se ve de inmediato con "Reintentar".
 
 final class ResumenComprasProvider
     extends
@@ -152,12 +154,13 @@ final class ResumenComprasProvider
   ///
   /// Se recalcula al cambiar de distribuidor o de bodega;
   /// `ref.invalidate(resumenComprasProvider)` lo refresca. Sin una membresía de
-  /// bodega activa falla con [StateError].
+  /// bodega activa falla con [StateError]. Sin reintentos automáticos: un
+  /// fallo se ve de inmediato con "Reintentar".
   ResumenComprasProvider._()
     : super(
         from: null,
         argument: null,
-        retry: null,
+        retry: sinReintentos,
         name: r'resumenComprasProvider',
         isAutoDispose: true,
         dependencies: null,
@@ -179,4 +182,4 @@ final class ResumenComprasProvider
   }
 }
 
-String _$resumenComprasHash() => r'99d5615d14a297ba97e99120eb63eaad155be580';
+String _$resumenComprasHash() => r'b592964f97434963ea88f059a97f6592dead51de';

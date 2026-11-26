@@ -75,7 +75,8 @@ String _$catalogoRepositorioHash() =>
 /// Se guarda en memoria mientras dure la sesión (inicio, catálogo y detalle
 /// leen el mismo) y se vuelve a cargar al cambiar de distribuidor o de rol;
 /// `ref.invalidate(catalogoProvider)` lo refresca. Sin membresía activa
-/// falla con [StateError].
+/// falla con [StateError]. Sin reintentos automáticos: un fallo se ve de
+/// inmediato con "Reintentar".
 
 @ProviderFor(catalogo)
 final catalogoProvider = CatalogoProvider._();
@@ -85,7 +86,8 @@ final catalogoProvider = CatalogoProvider._();
 /// Se guarda en memoria mientras dure la sesión (inicio, catálogo y detalle
 /// leen el mismo) y se vuelve a cargar al cambiar de distribuidor o de rol;
 /// `ref.invalidate(catalogoProvider)` lo refresca. Sin membresía activa
-/// falla con [StateError].
+/// falla con [StateError]. Sin reintentos automáticos: un fallo se ve de
+/// inmediato con "Reintentar".
 
 final class CatalogoProvider
     extends
@@ -96,12 +98,13 @@ final class CatalogoProvider
   /// Se guarda en memoria mientras dure la sesión (inicio, catálogo y detalle
   /// leen el mismo) y se vuelve a cargar al cambiar de distribuidor o de rol;
   /// `ref.invalidate(catalogoProvider)` lo refresca. Sin membresía activa
-  /// falla con [StateError].
+  /// falla con [StateError]. Sin reintentos automáticos: un fallo se ve de
+  /// inmediato con "Reintentar".
   CatalogoProvider._()
     : super(
         from: null,
         argument: null,
-        retry: null,
+        retry: sinReintentos,
         name: r'catalogoProvider',
         isAutoDispose: false,
         dependencies: null,
@@ -122,7 +125,7 @@ final class CatalogoProvider
   }
 }
 
-String _$catalogoHash() => r'43da857509b67a57b911653df7fda7f0bfd2aca3';
+String _$catalogoHash() => r'0708b10a9a9fa28483a8c1524652d14a83178cfc';
 
 /// Filtros elegidos en el catálogo. Se conservan sin pantallas que los
 /// escuchen (el inicio elige una categoría antes de abrir el catálogo) y

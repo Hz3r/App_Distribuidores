@@ -28,8 +28,9 @@ DateTime Function() reloj(Ref ref) =>
 ///
 /// Se recalcula al cambiar de distribuidor o de bodega;
 /// `ref.invalidate(resumenComprasProvider)` lo refresca. Sin una membresía de
-/// bodega activa falla con [StateError].
-@riverpod
+/// bodega activa falla con [StateError]. Sin reintentos automáticos: un
+/// fallo se ve de inmediato con "Reintentar".
+@Riverpod(retry: sinReintentos)
 Future<ResumenCompras> resumenCompras(Ref ref) async {
   final (:distribuidorId, :clienteId) = ref.watch(
     membresiaActivaProvider.select(

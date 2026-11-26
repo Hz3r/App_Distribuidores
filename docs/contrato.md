@@ -723,7 +723,8 @@ Estado de cada app:
      tu distribuidor." (en la pantalla sin acceso o, si entra a otra zona, como aviso
      emergente). Si el canje no responde (red, `P0005`), el pendiente se conserva y se reintenta
      en la siguiente carga. Si la sesión cambia mientras se canjea, no se completa ni se limpia, y
-     si la misma persona vuelve a ingresar, el canje se vuelve a intentar.
+     si la misma persona vuelve a ingresar cuando ese canje ya respondió, se vuelve a intentar
+     (si reingresa mientras el canje anterior sigue sin responder, se omite: caso muy raro, pendiente).
   6. Con sesión, la pantalla de código canjea directamente (para sumar otro distribuidor). Se
      llega a ella también con varias membresías y ninguna elegida.
   7. **Canje al ingresar.** Si el registro responde "Ya existe una cuenta con este correo",

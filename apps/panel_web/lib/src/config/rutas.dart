@@ -16,4 +16,7 @@ abstract final class AppRutas {
   static const String pedidos = '/pedidos';
   static const String reportes = '/reportes';
   static const String configuracion = '/configuracion';
+
+  // Fuera de la lista del menú: se abre desde la tarjeta de la persona.
+  static const String cuenta = '/cuenta';
 }

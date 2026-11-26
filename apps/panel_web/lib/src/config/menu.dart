@@ -11,6 +11,7 @@ class SeccionPanel {
     required this.etiqueta,
     required this.icono,
     this.soloAdmin = false,
+    this.enMenu = true,
   });
 
   final String ruta;
@@ -19,6 +20,10 @@ class SeccionPanel {
 
   /// `true` si el vendedor no entra (la BD tampoco le deja escribir ahí).
   final bool soloAdmin;
+
+  /// `false` para una sección que no sale en la lista del menú (Mi cuenta,
+  /// que se abre desde la tarjeta de la persona).
+  final bool enMenu;
 
   bool visiblePara(RolMembresia rol) => !soloAdmin || rol == RolMembresia.admin;
 }
@@ -66,6 +71,12 @@ const seccionesPanel = <SeccionPanel>[
     etiqueta: 'Configuración',
     icono: Icons.tune_rounded,
     soloAdmin: true,
+  ),
+  SeccionPanel(
+    ruta: AppRutas.cuenta,
+    etiqueta: 'Mi cuenta',
+    icono: Icons.person_outline_rounded,
+    enMenu: false,
   ),
 ];
 

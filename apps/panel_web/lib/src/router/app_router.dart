@@ -6,6 +6,7 @@ import '../config/rutas.dart';
 import '../features/auth/presentation/auth_screen.dart';
 import '../features/clientes/presentation/clientes_screen.dart';
 import '../features/configuracion/presentation/configuracion_screen.dart';
+import '../features/cuenta/presentation/cuenta_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/disponibilidad/presentation/disponibilidad_screen.dart';
 import '../features/invitaciones/presentation/invitaciones_screen.dart';
@@ -83,6 +84,7 @@ GoRouter appRouter(Ref ref) {
           _seccion(AppRutas.pedidos, const PedidosScreen()),
           _seccion(AppRutas.reportes, const ReportesScreen()),
           _seccion(AppRutas.configuracion, const ConfiguracionScreen()),
+          _seccion(AppRutas.cuenta, const CuentaScreen()),
         ],
       ),
     ],

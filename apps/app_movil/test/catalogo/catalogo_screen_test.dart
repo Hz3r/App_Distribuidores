@@ -234,6 +234,54 @@ void main() {
     await dejarPasarAviso(tester);
   });
 
+  testWidgets('con todo lo disponible en el carrito la tarjeta dice "Ya en '
+      'tu carrito" en vez de "N disponibles"', (tester) async {
+    final manejador = tester.ensureSemantics();
+    repositorio.catalogo = Catalogo(
+      distribuidorId: 'd1',
+      categorias: const [],
+      productos: [
+        producto(
+          'pocos',
+          nombre: 'Pisco Quebranta',
+          categoriaId: null,
+          stockFisico: 2,
+        ),
+      ],
+      preciosLista: const {},
+    );
+    await montarCliente(tester, repositorio: repositorio);
+    final tarjeta = find.widgetWithText(TarjetaProducto, 'Pisco Quebranta');
+    expect(
+      find.descendant(of: tarjeta, matching: find.text('2 disponibles')),
+      findsOneWidget,
+    );
+
+    await tester.tap(masDe('Pisco Quebranta'));
+    await tester.pump();
+    // Con 1 de 2 todavía se puede agregar.
+    expect(find.text('Ya en tu carrito'), findsNothing);
+    await tester.tap(masDe('Pisco Quebranta'));
+    await tester.pump();
+
+    expect(
+      find.descendant(of: tarjeta, matching: find.text('Ya en tu carrito')),
+      findsOneWidget,
+    );
+    expect(find.text('2 disponibles'), findsNothing);
+    // El "+" apagado también lo dice a quien usa un lector de pantalla.
+    expect(
+      tester.getSemantics(masDe('Pisco Quebranta')),
+      containsSemantics(
+        tooltip:
+            'Ya tienes en el carrito todo lo disponible de Pisco Quebranta',
+        isEnabled: false,
+      ),
+    );
+    await dejarPasarAviso(tester);
+    manejador.dispose();
+  });
+
   testWidgets('tocar la tarjeta abre el detalle', (tester) async {
     final (:router, :container) = await montarCliente(
       tester,

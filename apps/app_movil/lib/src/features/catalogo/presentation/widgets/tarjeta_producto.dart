@@ -41,6 +41,8 @@ class TarjetaProducto extends ConsumerWidget {
       ),
     );
     final puedeAgregar = enCarrito < tope;
+    // Hay stock, pero el carrito ya tiene todo lo que se puede pedir.
+    final todoEnCarrito = !item.agotado && !puedeAgregar;
 
     void agregar() {
       ref
@@ -94,7 +96,10 @@ class TarjetaProducto extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    IndicadorDisponibilidad(disponible: item.disponible),
+                    IndicadorDisponibilidad(
+                      disponible: item.disponible,
+                      todoEnCarrito: todoEnCarrito,
+                    ),
                     const SizedBox(height: 8),
                     // El precio va solo en su línea y nunca se recorta: uno
                     // recortado se leería como otro número.
@@ -118,7 +123,10 @@ class TarjetaProducto extends ConsumerWidget {
                         ),
                         const SizedBox(width: 6),
                         _BotonMas(
-                          tooltip: 'Agregar ${producto.nombre} al carrito',
+                          tooltip: todoEnCarrito
+                              ? 'Ya tienes en el carrito todo lo disponible '
+                                    'de ${producto.nombre}'
+                              : 'Agregar ${producto.nombre} al carrito',
                           onPressed: puedeAgregar ? agregar : null,
                         ),
                       ],
@@ -134,17 +142,28 @@ class TarjetaProducto extends ConsumerWidget {
   }
 }
 
-/// Punto y texto de disponibilidad: "340 disponibles" en verde, o "Agotado"
-/// en rojo.
+/// Punto y texto de disponibilidad: "340 disponibles" en verde, "Agotado"
+/// en rojo, o "Ya en tu carrito" en azul si [todoEnCarrito] (hay stock pero
+/// el carrito ya tiene todo lo disponible).
 class IndicadorDisponibilidad extends StatelessWidget {
-  const IndicadorDisponibilidad({required this.disponible, super.key});
+  const IndicadorDisponibilidad({
+    required this.disponible,
+    this.todoEnCarrito = false,
+    super.key,
+  });
 
   final int disponible;
+  final bool todoEnCarrito;
 
   @override
   Widget build(BuildContext context) {
     final agotado = disponible <= 0;
-    final color = agotado ? ColoresApp.error : ColoresApp.exito;
+    final enCarrito = todoEnCarrito && !agotado;
+    final color = agotado
+        ? ColoresApp.error
+        : enCarrito
+        ? ColoresApp.azul
+        : ColoresApp.exito;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -155,7 +174,7 @@ class IndicadorDisponibilidad extends StatelessWidget {
         const SizedBox(width: 6),
         Flexible(
           child: Text(
-            textoDisponibilidad(disponible),
+            enCarrito ? 'Ya en tu carrito' : textoDisponibilidad(disponible),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodySmall

@@ -33,6 +33,10 @@ abstract final class ColoresApp {
   static const exito = Color(0xFF0F766E);
   static const fondoExito = Color(0xFFD7F5EE);
   static const error = Color(0xFFB91C1C);
+  static const fondoError = Color(0xFFFDE8E8);
+
+  /// Fondo gris muy claro de las pantallas con tarjetas blancas (inicio).
+  static const fondoPantalla = Color(0xFFF8FAFC);
 }
 
 /// Radio de esquinas de botones, tarjetas y casillas.

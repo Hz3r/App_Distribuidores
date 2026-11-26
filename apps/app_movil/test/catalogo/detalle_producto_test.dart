@@ -1,0 +1,446 @@
+import 'package:app_movil/src/config/rutas.dart';
+import 'package:app_movil/src/features/carrito/presentation/carrito_providers.dart';
+import 'package:app_movil/src/features/carrito/presentation/carrito_screen.dart';
+import 'package:app_movil/src/features/catalogo/domain/catalogo.dart';
+import 'package:app_movil/src/features/catalogo/presentation/detalle_producto_screen.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
+
+import 'fabricas.dart';
+import 'montar_cliente.dart';
+import '../soporte/dobles_cliente.dart';
+
+/// Cantidad elegida en la barra inferior del detalle.
+String cantidad(WidgetTester tester) =>
+    tester.widget<Text>(find.byKey(DetalleProductoScreen.claveCantidad)).data!;
+
+Future<void> tocarMas(WidgetTester tester, [int veces = 1]) async {
+  for (var i = 0; i < veces; i++) {
+    await tester.tap(find.widgetWithIcon(IconButton, Icons.add));
+    await tester.pump();
+  }
+}
+
+/// Etiqueta del botón de agregar, con sus líneas unidas por " · " (a lo
+/// angosto el monto pasa a una segunda línea).
+String etiquetaAgregar(WidgetTester tester) => find
+    .descendant(of: find.byType(FilledButton), matching: find.byType(Text))
+    .evaluate()
+    .map((e) => (e.widget as Text).data)
+    .join(' · ');
+
+/// Fila de tramo resaltada.
+Finder tramoResaltado() =>
+    find.byWidgetPredicate((w) => w is FilaTramo && w.resaltada);
+
+/// Un producto con dos presentaciones que comparten 24 unidades: "Unidad"
+/// (24 disponibles) y "Caja x 12" (2 disponibles).
+Catalogo catalogoConDosPresentaciones() => Catalogo(
+  distribuidorId: 'd1',
+  clienteNegocioId: 'cn-d1',
+  categorias: [categoria('c2', nombre: 'Piscos')],
+  productos: [
+    producto(
+      'px',
+      nombre: 'Pisco Quebranta',
+      marca: 'Tabernero',
+      categoriaId: 'c2',
+      stockFisico: 24,
+      presentaciones: [
+        presentacion(
+          'px-u',
+          productoId: 'px',
+          nombre: 'Unidad',
+          precioBase: 2500,
+        ),
+        presentacion(
+          'px-c',
+          productoId: 'px',
+          nombre: 'Caja x 12',
+          factor: 12,
+          precioBase: 27000,
+          orden: 1,
+        ),
+      ],
+    ),
+  ],
+  preciosLista: const {},
+);
+
+void main() {
+  late CatalogoRepositorioFijo repositorio;
+
+  setUp(() => repositorio = CatalogoRepositorioFijo(catalogoDePrueba()));
+
+  testWidgets('muestra el producto, sus tramos y cubre la barra inferior', (
+    tester,
+  ) async {
+    await montarCliente(
+      tester,
+      repositorio: repositorio,
+      ubicacion: AppRutas.detalleProducto('p1'),
+    );
+
+    expect(find.text('Detalle'), findsOneWidget);
+    expect(find.text('CERVEZAS · RUBIA'), findsOneWidget);
+    expect(find.text('Cerveza Rubia 630 ml'), findsOneWidget);
+    expect(find.text('340 disponibles'), findsOneWidget);
+    expect(find.text('Precio mayorista por volumen'), findsOneWidget);
+    expect(find.text('1 – 9'), findsOneWidget);
+    expect(find.text('10 – 49'), findsOneWidget);
+    expect(find.text('50 o más'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(FilaTramo),
+        matching: find.text('S/ 62.90'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(FilaTramo),
+        matching: find.text('S/ 60.50'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(FilaTramo),
+        matching: find.text('S/ 58.00'),
+      ),
+      findsOneWidget,
+    );
+    expect(etiquetaAgregar(tester), 'Agregar · S/ 62.90');
+    // Una sola presentación: no hay selector.
+    expect(find.byType(ChoiceChip), findsNothing);
+    // El detalle se abre por encima de la barra.
+    expect(find.byType(NavigationBar), findsNothing);
+  });
+
+  testWidgets('con 3 el botón dice S/ 188.70 y con 10 usa el segundo tramo', (
+    tester,
+  ) async {
+    await montarCliente(
+      tester,
+      repositorio: repositorio,
+      ubicacion: AppRutas.detalleProducto('p1'),
+    );
+    expect(tester.widget<FilaTramo>(tramoResaltado()).tramo.desde, 1);
+
+    await tocarMas(tester, 2);
+    expect(cantidad(tester), '3');
+    expect(etiquetaAgregar(tester), 'Agregar · S/ 188.70');
+
+    await tocarMas(tester, 7);
+    expect(cantidad(tester), '10');
+    // 10 × 60.50
+    expect(etiquetaAgregar(tester), 'Agregar · S/ 605.00');
+    expect(tramoResaltado(), findsOneWidget);
+    expect(tester.widget<FilaTramo>(tramoResaltado()).tramo.desde, 10);
+
+    await tester.tap(find.widgetWithIcon(IconButton, Icons.remove));
+    await tester.pump();
+    expect(cantidad(tester), '9');
+    expect(tester.widget<FilaTramo>(tramoResaltado()).tramo.desde, 1);
+  });
+
+  testWidgets('"+" no pasa del disponible y "−" no baja de 1', (tester) async {
+    repositorio.catalogo = Catalogo(
+      distribuidorId: 'd1',
+      clienteNegocioId: 'cn-d1',
+      categorias: const [],
+      productos: [
+        producto('p', nombre: 'Vino Tinto', categoriaId: null, stockFisico: 3),
+      ],
+      preciosLista: const {},
+    );
+    await montarCliente(
+      tester,
+      repositorio: repositorio,
+      ubicacion: AppRutas.detalleProducto('p'),
+    );
+
+    await tocarMas(tester, 5);
+    expect(cantidad(tester), '3');
+
+    for (var i = 0; i < 4; i++) {
+      await tester.tap(find.widgetWithIcon(IconButton, Icons.remove));
+      await tester.pump();
+    }
+    expect(cantidad(tester), '1');
+  });
+
+  testWidgets('cambiar a una presentación con menos disponible ajusta la '
+      'cantidad', (tester) async {
+    repositorio.catalogo = catalogoConDosPresentaciones();
+    await montarCliente(
+      tester,
+      repositorio: repositorio,
+      ubicacion: AppRutas.detalleProducto('px'),
+    );
+    expect(find.text('24 disponibles'), findsOneWidget);
+
+    await tocarMas(tester, 4);
+    expect(cantidad(tester), '5');
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Caja x 12'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('2 disponibles'), findsOneWidget);
+    expect(cantidad(tester), '2');
+    expect(etiquetaAgregar(tester), 'Agregar · S/ 540.00');
+  });
+
+  testWidgets('el stock es del producto: lo que hay de una presentación '
+      'reduce lo que se puede agregar de la otra', (tester) async {
+    repositorio.catalogo = catalogoConDosPresentaciones();
+    final (:router, :container) = await montarCliente(
+      tester,
+      repositorio: repositorio,
+      ubicacion: AppRutas.detalleProducto('px'),
+    );
+    // Una caja (12 unidades) en el carrito: quedan 12 unidades sueltas.
+    container
+        .read(carritoActualProvider.notifier)
+        .agregar('px-c', 1, disponible: 2);
+    await tester.pump();
+
+    await tocarMas(tester, 20);
+    expect(cantidad(tester), '12');
+
+    // Con 12 unidades sueltas más en el carrito ya no cabe otra caja.
+    await tester.tap(find.byType(FilledButton));
+    await tester.pump();
+    expect(container.read(carritoActualProvider).cantidadDe('px-u'), 12);
+    await dejarPasarAviso(tester);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Caja x 12'));
+    await tester.pumpAndSettle();
+    // La disponibilidad mostrada es la de la presentación sola.
+    expect(find.text('2 disponibles'), findsOneWidget);
+    final boton = tester.widget<FilledButton>(
+      find.widgetWithText(
+        FilledButton,
+        'Ya tienes en el carrito todo lo disponible de este producto.',
+      ),
+    );
+    // Sin nada más que agregar, solo dice cuánto hay.
+    expect(find.text('Ya tienes 1 en el carrito.'), findsOneWidget);
+    expect(boton.onPressed, isNull);
+  });
+
+  testWidgets('agregar suma al carrito, avisa y vuelve la cantidad a 1', (
+    tester,
+  ) async {
+    final (:router, :container) = await montarCliente(
+      tester,
+      repositorio: repositorio,
+      ubicacion: AppRutas.detalleProducto('p1'),
+    );
+
+    await tocarMas(tester, 2);
+    expect(etiquetaAgregar(tester), 'Agregar · S/ 188.70');
+    await tester.tap(find.byType(FilledButton));
+    await tester.pump();
+
+    expect(container.read(carritoActualProvider).cantidadDe('p1-caja'), 3);
+    expect(find.text('Agregado al carrito'), findsOneWidget);
+    expect(cantidad(tester), '1');
+    await dejarPasarAviso(tester);
+  });
+
+  testWidgets('agotado: el botón dice "Agotado" y no agrega', (tester) async {
+    await montarCliente(
+      tester,
+      repositorio: repositorio,
+      ubicacion: AppRutas.detalleProducto('p4'),
+    );
+
+    expect(find.text('Agotado'), findsWidgets);
+    final boton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Agotado'),
+    );
+    expect(boton.onPressed, isNull);
+  });
+
+  testWidgets('el icono del carrito abre el carrito encima del detalle', (
+    tester,
+  ) async {
+    final (:router, :container) = await montarCliente(
+      tester,
+      repositorio: repositorio,
+      ubicacion: AppRutas.detalleProducto('p1'),
+    );
+
+    await tester.tap(find.byTooltip('Ver carrito'));
+    await tester.pumpAndSettle();
+
+    expect(router.state.matchedLocation, AppRutas.carritoDesdeDetalle('p1'));
+    expect(find.byType(CarritoScreen), findsOneWidget);
+    // Su flecha de volver regresa al detalle.
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(router.state.matchedLocation, AppRutas.detalleProducto('p1'));
+  });
+
+  testWidgets('producto inexistente: mensaje y vuelta al catálogo', (
+    tester,
+  ) async {
+    final (:router, :container) = await montarCliente(
+      tester,
+      repositorio: repositorio,
+      ubicacion: AppRutas.detalleProducto('no-existe'),
+    );
+
+    expect(find.text('Este producto ya no está disponible.'), findsOneWidget);
+
+    await tester.tap(find.text('Volver al catálogo'));
+    await tester.pumpAndSettle();
+
+    expect(router.state.matchedLocation, AppRutas.catalogo);
+  });
+
+  /// Abre el detalle de "Cerveza Rubia" con [enCarrito] cajas ya en el
+  /// carrito y elige [elegidas].
+  Future<void> conCarrito(
+    WidgetTester tester, {
+    required int enCarrito,
+    required int elegidas,
+    double ancho = 390,
+  }) async {
+    final (:router, :container) = await montarCliente(
+      tester,
+      repositorio: repositorio,
+      ubicacion: AppRutas.detalleProducto('p1'),
+      ancho: ancho,
+    );
+    container
+        .read(carritoActualProvider.notifier)
+        .agregar('p1-caja', enCarrito, disponible: 340);
+    await tester.pump();
+    await tocarMas(tester, elegidas - 1);
+    expect(cantidad(tester), '$elegidas');
+  }
+
+  testWidgets('con 5 en el carrito y 5 elegidas: tramo y total de la línea '
+      'sumada, sin restas', (tester) async {
+    await conCarrito(tester, enCarrito: 5, elegidas: 5);
+
+    expect(tester.widget<FilaTramo>(tramoResaltado()).tramo.desde, 10);
+    expect(etiquetaAgregar(tester), 'Agregar 5 más');
+    expect(
+      find.text(
+        'Ya tienes 5 en el carrito. Quedarán 10 a S/ 60.50 c/u: S/ 605.00.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('con 49 en el carrito y 1 elegida pasa a "50 o más" sin montos '
+      'negativos', (tester) async {
+    await conCarrito(tester, enCarrito: 49, elegidas: 1);
+
+    expect(tester.widget<FilaTramo>(tramoResaltado()).tramo.desde, 50);
+    expect(etiquetaAgregar(tester), 'Agregar 1 más');
+    expect(
+      find.text(
+        'Ya tienes 49 en el carrito. Quedarán 50 a S/ 58.00 c/u: S/ 2,900.00.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('-'), findsNothing);
+    expect(find.textContaining('−'), findsNothing);
+  });
+
+  testWidgets('a 320 de ancho el texto de lo que quedará se lee completo', (
+    tester,
+  ) async {
+    await conCarrito(tester, enCarrito: 5, elegidas: 5, ancho: 320);
+
+    expectSinRecortar(
+      tester,
+      find.text(
+        'Ya tienes 5 en el carrito. Quedarán 10 a S/ 60.50 c/u: S/ 605.00.',
+      ),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('con el carrito vacío no dice cuánto hay en el carrito', (
+    tester,
+  ) async {
+    await montarCliente(
+      tester,
+      repositorio: repositorio,
+      ubicacion: AppRutas.detalleProducto('p1'),
+    );
+    await tocarMas(tester, 2);
+
+    expect(find.textContaining('en el carrito.'), findsNothing);
+    expect(etiquetaAgregar(tester), 'Agregar · S/ 188.70');
+  });
+
+  for (final ancho in [360.0, 320.0]) {
+    testWidgets('a $ancho de ancho el total se lee completo', (tester) async {
+      repositorio.catalogo = Catalogo(
+        distribuidorId: 'd1',
+        clienteNegocioId: 'cn-d1',
+        categorias: const [],
+        productos: [
+          producto(
+            'caro',
+            nombre: 'Whisky 18 años',
+            categoriaId: null,
+            stockFisico: 50,
+            presentaciones: [
+              presentacion(
+                'caro-c',
+                productoId: 'caro',
+                nombre: 'Caja x 6',
+                precioBase: 120050,
+              ),
+            ],
+          ),
+        ],
+        preciosLista: const {},
+      );
+      await montarCliente(
+        tester,
+        repositorio: repositorio,
+        ubicacion: AppRutas.detalleProducto('caro'),
+        ancho: ancho,
+      );
+      await tocarMas(tester, 9);
+
+      expect(etiquetaAgregar(tester), 'Agregar · S/ 12,005.00');
+      final monto = find.descendant(
+        of: find.byType(FilledButton),
+        matching: find.textContaining('S/ 12,005.00'),
+      );
+      expectSinRecortar(tester, monto);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final (ancho, escala) in [(320.0, 1.0), (320.0, 1.3), (390.0, 1.0)]) {
+    testWidgets('a $ancho de ancho y letra ×$escala los toques miden al '
+        'menos 48×48 y nada se desborda', (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = escala;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final manejador = tester.ensureSemantics();
+      await montarCliente(
+        tester,
+        repositorio: repositorio,
+        ubicacion: AppRutas.detalleProducto('p1'),
+        ancho: ancho,
+      );
+      // "−" habilitado también.
+      await tocarMas(tester);
+
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      expect(find.widgetWithIcon(IconButton, Icons.remove), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      manejador.dispose();
+    });
+  }
+}

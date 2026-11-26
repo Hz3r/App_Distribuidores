@@ -1,11 +1,12 @@
-import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../config/rutas.dart';
 import '../features/auth/presentation/ingreso_screen.dart';
 import '../features/carrito/presentation/carrito_screen.dart';
 import '../features/catalogo/presentation/catalogo_screen.dart';
+import '../features/catalogo/presentation/detalle_producto_screen.dart';
 import '../features/checkout/presentation/checkout_screen.dart';
 import '../features/perfil/presentation/perfil_screen.dart';
 import '../features/registro/domain/argumentos_registro.dart';
@@ -14,6 +15,7 @@ import '../features/registro/presentation/bienvenida_screen.dart';
 import '../features/registro/presentation/codigo_screen.dart';
 import '../features/registro/presentation/registro_screen.dart';
 import '../features/registro/presentation/revisa_correo_screen.dart';
+import '../features/inicio/presentation/inicio_screen.dart';
 import '../features/pedidos/presentation/pedidos_screen.dart';
 import '../features/repartidor/presentation/repartidor_screen.dart';
 import '../features/seleccion_distribuidor/presentation/seleccion_distribuidor_screen.dart';
@@ -22,6 +24,7 @@ import '../features/sesion/presentation/control_acceso.dart';
 import '../features/sesion/presentation/error_acceso_screen.dart';
 import '../shared/widgets/sin_rol_screen.dart';
 import 'destino.dart';
+import 'estructura_cliente.dart';
 
 part 'app_router.g.dart';
 
@@ -37,7 +40,12 @@ GoRouter appRouter(Ref ref) {
   // `redirect` cuando cambia el acceso.
   ref.listen(controlAccesoProvider, (_, _) => refresco.avisar());
 
+  // Navegador raíz: lo que se abre en él (el detalle de producto) cubre la
+  // barra inferior.
+  final raiz = GlobalKey<NavigatorState>(debugLabel: 'raiz');
+
   final router = GoRouter(
+    navigatorKey: raiz,
     initialLocation: AppRutas.bienvenida,
     refreshListenable: refresco,
     redirect: (context, state) {
@@ -89,17 +97,77 @@ GoRouter appRouter(Ref ref) {
         path: AppRutas.seleccionDistribuidor,
         builder: (_, _) => const SeleccionDistribuidorScreen(),
       ),
-      GoRoute(
-        path: AppRutas.catalogo,
-        builder: (_, _) => const CatalogoScreen(),
+      // Zona de la bodega con la barra inferior: una rama por pestaña, cada
+      // una con su propia pila.
+      StatefulShellRoute.indexedStack(
+        builder: (_, _, navegacion) =>
+            EstructuraCliente(navegacion: navegacion),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRutas.inicio,
+                builder: (_, _) => const InicioScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRutas.catalogo,
+                builder: (_, _) => const CatalogoScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'producto/:id',
+                    parentNavigatorKey: raiz,
+                    builder: (_, state) => DetalleProductoScreen(
+                      productoId: state.pathParameters['id']!,
+                    ),
+                    routes: [
+                      // El carrito encima del detalle: un `push` a la
+                      // pestaña del carrito no cabe (el detalle está fuera
+                      // de la barra), y un `go` descartaría el detalle.
+                      GoRoute(
+                        path: 'carrito',
+                        parentNavigatorKey: raiz,
+                        builder: (_, _) => const CarritoScreen(),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRutas.carrito,
+                builder: (_, _) => const CarritoScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRutas.pedidos,
+                builder: (_, _) => const PedidosScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRutas.perfil,
+                builder: (_, _) => const PerfilScreen(),
+              ),
+            ],
+          ),
+        ],
       ),
-      GoRoute(path: AppRutas.carrito, builder: (_, _) => const CarritoScreen()),
       GoRoute(
         path: AppRutas.checkout,
         builder: (_, _) => const CheckoutScreen(),
       ),
-      GoRoute(path: AppRutas.pedidos, builder: (_, _) => const PedidosScreen()),
-      GoRoute(path: AppRutas.perfil, builder: (_, _) => const PerfilScreen()),
       GoRoute(
         path: AppRutas.repartidor,
         builder: (_, _) => const RepartidorScreen(),

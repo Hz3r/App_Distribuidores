@@ -100,7 +100,19 @@ dart run melos run run:movil     # app móvil con env/dev.json
 dart run melos run run:web       # panel web en Chrome con env/dev.json
 ```
 
-También puedes usar las configuraciones de VS Code: **App móvil (dev)** y **Panel web (dev)**.
+En VS Code usa el panel **Run and Debug** (o `F5`) con una de estas configuraciones:
+**App móvil en Chrome (dev)**, **App móvil en dispositivo (dev)** o **Panel web (dev)**.
+
+> No uses el botón "Run" que aparece sobre `main()`: no pasa `env/dev.json` y la app muestra
+> "Falta la configuración de Supabase". Lo mismo pasa con `flutter run` sin
+> `--dart-define-from-file`.
+
+Para la app móvil en Chrome desde la terminal:
+
+```bash
+cd apps/app_movil
+flutter run -d chrome --dart-define-from-file=../../env/dev.json
+```
 
 ## Comandos de Melos
 

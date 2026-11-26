@@ -751,7 +751,40 @@ Estado de cada app:
   `seleccion-distribuidor`. La preferencia se guarda en **`user_metadata.distribuidor_activo`**
   (`auth.updateUser`) y se usa si sigue entre las útiles. Es solo una preferencia: la BD valida la
   membresía en cada consulta. Mientras lee muestra una pantalla de espera; si falla, una de error
-  con reintentar y cerrar sesión. Cliente → catálogo; repartidor → su zona.
+  con reintentar y cerrar sesión. Cliente → inicio; repartidor → su zona.
+- **`app_movil`: inicio y catálogo de la bodega (solo lectura).** La app no escribe nada en
+  estas pantallas.
+  - **Catálogo** (lo comparten inicio, catálogo y detalle; se guarda en memoria durante la
+    sesión y se recarga al deslizar hacia abajo): `categorias` (`activo = true`), `productos`
+    con `select('*, presentaciones(*, precios_volumen(*))')` (`activo = true`) y, si es
+    cliente, `precios_lista` sin filtrar por lista (la RLS deja solo la vigente y activa de su
+    bodega); todo filtrado por `distribuidor_id`. El precio y la disponibilidad que se muestran
+    siguen las reglas de `crear_pedido`, que los vuelve a calcular. **El catálogo queda en
+    memoria durante la sesión**: solo se vuelve a leer al deslizar hacia abajo, al tocar
+    "Reintentar" o al cambiar de distribuidor, de bodega o de cuenta (mientras llega el nuevo
+    no se muestra el anterior: el catálogo lleva el distribuidor y la bodega para los que se
+    cargó). Entretanto, la BD puede cambiar precios, listas y stock, así que lo
+    que se ve puede estar desactualizado. **La pantalla de checkout deberá volver a validar
+    disponibilidad y precios** antes de confirmar; la que decide es la BD (`crear_pedido`, con
+    bloqueo de fila), nunca el catálogo en memoria.
+  - **Inicio:** `pedidos` con `select('*, items:pedido_items(*)')`, filtrando por
+    `distribuidor_id`, `cliente_id` (el `cliente_negocio_id` de la membresía activa; la RLS ya
+    limita a los de su bodega) y `creado_en >=` 90 días atrás o el inicio del mes anterior, lo
+    que sea más antiguo; del más reciente al más antiguo. **El último pedido se lee aparte y sin
+    límite de fecha** (`select()` con los mismos filtros de distribuidor y bodega,
+    `order('creado_en', desc)`, `limit(1)`, sin líneas): una bodega cuyo último pedido tiene más
+    de 90 días lo sigue viendo, y "Aún no tienes pedidos" solo aparece si nunca hizo uno. Con
+    las dos lecturas calcula en la app: el último pedido (de cualquier estado), lo comprado en
+    el mes en curso (suma de `total_centimos` sin cancelados) y su variación contra el mes
+    anterior (redondeada; "igual" solo con totales idénticos), y "Lo que más pides" (suma de
+    `cantidad × factor` por `producto_id` en pedidos no cancelados de los últimos 90 días,
+    máximo 6). Los meses se cuentan en la zona del distribuidor; la app solo conoce
+    `America/Lima` (UTC−5) y usa ese desfase para cualquier otra `zona_horaria`. No muestra
+    pedido mínimo, hora de corte ni promociones: la BD no tiene esos datos.
+  - **Carrito: solo en memoria.** "+" y "Agregar" llenan un carrito local, con el tope del stock
+    disponible del producto (compartido entre sus presentaciones). No se guarda en la BD; se
+    vacía al cerrar la app, al cambiar de distribuidor o de sesión. El pedido se crea con
+    `crear_pedido` cuando exista el checkout.
 - **`user_metadata.distribuidor_activo` es la preferencia de la app móvil.** El panel debe usar
   su propia clave (por ejemplo `distribuidor_activo_panel`): una persona puede ser `admin` en un
   distribuidor y `cliente` en otro, y cada app elige entre membresías distintas.

@@ -244,7 +244,7 @@ void main() {
       await ingresarConSesion(tester);
 
       expect(invitaciones.canjes, ['XY7ZW8V9']);
-      expect(router.state.matchedLocation, AppRutas.catalogo);
+      expect(router.state.matchedLocation, AppRutas.inicio);
       expect(
         find.text(
           'No pudimos vincular este código. Pide uno nuevo a tu distribuidor.',
@@ -262,7 +262,7 @@ void main() {
       await ingresarConSesion(tester);
 
       expect(invitaciones.canjes, isEmpty);
-      expect(router.state.matchedLocation, AppRutas.catalogo);
+      expect(router.state.matchedLocation, AppRutas.inicio);
     });
 
     testWidgets('con credenciales incorrectas el código se conserva para el '

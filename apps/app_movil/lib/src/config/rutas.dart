@@ -18,7 +18,14 @@ abstract final class AppRutas {
   static const String errorAcceso = '/error-acceso';
   static const String sinRol = '/sin-rol';
   static const String seleccionDistribuidor = '/seleccion-distribuidor';
+
+  /// Inicio de la bodega: primera pestaña de la barra inferior.
+  static const String inicio = '/inicio';
   static const String catalogo = '/catalogo';
+
+  /// Detalle de un producto. Vive bajo el catálogo, pero se abre por encima
+  /// de la barra inferior.
+  static String detalleProducto(String id) => '$catalogo/producto/$id';
   static const String carrito = '/carrito';
   static const String checkout = '/checkout';
   static const String pedidos = '/pedidos';

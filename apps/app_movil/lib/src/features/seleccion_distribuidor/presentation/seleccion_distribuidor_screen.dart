@@ -54,8 +54,8 @@ class SeleccionDistribuidorScreen extends ConsumerWidget {
         ),
       );
     }
-    // El router lleva desde el catálogo al inicio que corresponda al rol.
-    router?.go(AppRutas.catalogo);
+    // El router lleva desde el inicio de la bodega al que corresponda al rol.
+    router?.go(AppRutas.inicio);
   }
 }
 

@@ -26,8 +26,11 @@ Membresia membresia(String distribuidorId, RolMembresia rol) {
   );
 }
 
+/// Una ruta de detalle de producto.
+final detalle = AppRutas.detalleProducto('p1');
+
 /// Todas las rutas de [AppRutas].
-const todasLasRutas = [
+final todasLasRutas = [
   AppRutas.bienvenida,
   AppRutas.codigo,
   AppRutas.registro,
@@ -37,7 +40,9 @@ const todasLasRutas = [
   AppRutas.errorAcceso,
   AppRutas.sinRol,
   AppRutas.seleccionDistribuidor,
+  AppRutas.inicio,
   AppRutas.catalogo,
+  detalle,
   AppRutas.carrito,
   AppRutas.checkout,
   AppRutas.pedidos,
@@ -141,7 +146,7 @@ void main() {
       ]) {
         expect(
           destino(soloCon(cliente), ubicacion),
-          AppRutas.catalogo,
+          AppRutas.inicio,
           reason: 'cliente en $ubicacion',
         );
         expect(
@@ -163,7 +168,7 @@ void main() {
       () {
         expect(
           destino(soloCon(cliente), AppRutas.seleccionDistribuidor),
-          AppRutas.catalogo,
+          AppRutas.inicio,
         );
         expect(
           destino(soloCon(repartidor), AppRutas.seleccionDistribuidor),
@@ -180,8 +185,8 @@ void main() {
       expect(destino(soloCon(repartidor), AppRutas.perfil), isNull);
     });
 
-    test('cliente dentro de la zona de repartidor va a catálogo', () {
-      expect(destino(soloCon(cliente), AppRutas.repartidor), AppRutas.catalogo);
+    test('cliente dentro de la zona de repartidor va a inicio', () {
+      expect(destino(soloCon(cliente), AppRutas.repartidor), AppRutas.inicio);
     });
 
     test('cualquier otro caso no redirige', () {
@@ -202,8 +207,43 @@ void main() {
       );
     });
 
-    test('cliente en repartidor va a catálogo', () {
-      expect(destino(soloCon(cliente), AppRutas.repartidor), AppRutas.catalogo);
+    test('cliente en repartidor va a inicio', () {
+      expect(destino(soloCon(cliente), AppRutas.repartidor), AppRutas.inicio);
+    });
+
+    test('cliente activo en auth, bienvenida, registro y cargando va a '
+        'inicio', () {
+      for (final ubicacion in [
+        AppRutas.auth,
+        AppRutas.bienvenida,
+        AppRutas.registro,
+        AppRutas.cargando,
+      ]) {
+        expect(
+          destino(soloCon(cliente), ubicacion),
+          AppRutas.inicio,
+          reason: 'cliente en $ubicacion',
+        );
+      }
+    });
+
+    test('cliente en inicio, catálogo y detalle no redirige', () {
+      expect(destino(soloCon(cliente), AppRutas.inicio), isNull);
+      expect(destino(soloCon(cliente), AppRutas.catalogo), isNull);
+      expect(destino(soloCon(cliente), detalle), isNull);
+    });
+
+    test('repartidor en inicio y en un detalle va a repartidor', () {
+      expect(
+        destino(soloCon(repartidor), AppRutas.inicio),
+        AppRutas.repartidor,
+      );
+      expect(destino(soloCon(repartidor), detalle), AppRutas.repartidor);
+    });
+
+    test('sin sesión, inicio y el detalle mandan a bienvenida', () {
+      expect(destino(const SinSesion(), AppRutas.inicio), AppRutas.bienvenida);
+      expect(destino(const SinSesion(), detalle), AppRutas.bienvenida);
     });
 
     test('con dos membresías y activa elegida, seleccionDistribuidor se '

@@ -48,12 +48,14 @@ String? destinoRedireccion({
     return membresias.length > 1 ? null : _inicioPara(rol);
   }
 
+  // Todo lo demás (inicio, catálogo y su detalle, carrito, pedidos) es zona
+  // de la bodega.
   final esZonaRepartidor = ubicacion.startsWith(AppRutas.repartidor);
   if (rol == RolMembresia.repartidor && !esZonaRepartidor) {
     return ubicacion == AppRutas.perfil ? null : AppRutas.repartidor;
   }
   if (rol == RolMembresia.cliente && esZonaRepartidor) {
-    return AppRutas.catalogo;
+    return AppRutas.inicio;
   }
 
   return null;
@@ -85,10 +87,11 @@ String? _salvoQueYaEste(String ruta, String ubicacion) =>
     ubicacion == ruta ? null : ruta;
 
 /// Ruta de inicio de cada rol de la app móvil. `admin` y `vendedor` nunca
-/// llegan aquí (los descarta `membresiasUtiles`); si llegaran, van al catálogo.
+/// llegan aquí (los descarta `membresiasUtiles`); si llegaran, van al inicio
+/// de la bodega.
 String _inicioPara(RolMembresia rol) => switch (rol) {
   RolMembresia.repartidor => AppRutas.repartidor,
   RolMembresia.cliente ||
   RolMembresia.admin ||
-  RolMembresia.vendedor => AppRutas.catalogo,
+  RolMembresia.vendedor => AppRutas.inicio,
 };

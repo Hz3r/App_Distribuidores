@@ -683,7 +683,10 @@ Estado de cada app:
   1. Consulta el código sin sesión (`consultar_invitacion`) y ve a quién se une.
   2. Completa el formulario: los datos de la bodega llegan como los cargó el distribuidor (el
      nombre es de solo lectura; el RUC o DNI solo se escribe si venía vacío; celular y dirección
-     se pueden corregir). Las invitaciones de personal no muestran datos de bodega.
+     se pueden corregir). Las invitaciones de personal no muestran datos de bodega. El celular
+     acepta espacios, guiones, paréntesis y el prefijo `+51`, y se guarda normalizado (9 dígitos);
+     si el teléfono que puso el distribuidor no es un celular válido, el campo llega vacío. La
+     referencia no está en el formulario y viaja como `null` ("sin cambios").
   3. Crea la cuenta con `auth.signUp(email, password, data: {...})`. En `data` van
      **`nombre`** (el trigger lo copia a `perfiles.nombre`) y
      **`registro_pendiente`**:
@@ -702,6 +705,12 @@ Estado de cada app:
   4. Si el proyecto exige confirmar el correo, `signUp` no da sesión y la app muestra "Revisa tu
      correo"; la sesión llega al ingresar. Con confirmación, un correo ya registrado no da error:
      Supabase devuelve un usuario sin `identities`, y la app lo trata como "ya existe".
+     - Si la persona se registra otra vez con el mismo correo **antes de confirmar**, Supabase
+       reenvía el correo de confirmación y **no aplica** la contraseña ni los datos nuevos
+       (`data`): valen los del primer registro. Es comportamiento de la plataforma, pendiente de
+       comprobar en DEV.
+     - `signUp` no pasa `emailRedirectTo`: el enlace de confirmación lleva a la URL del sitio
+       configurada en el proyecto de Supabase (Authentication → URL Configuration).
   5. **En cuanto hay sesión** (al crear la cuenta o en cualquier ingreso posterior), antes de leer
      las membresías, la app lee `user_metadata.registro_pendiente` y, si hay:
      canjea el código (`canjear_invitacion`); si hay datos de bodega, llama
@@ -710,11 +719,26 @@ Estado de cada app:
      ahí, la BD responde `42501`, que se registra y no impide entrar); y **limpia el pendiente
      vincule o no** (`auth.updateUser(data: {registro_pendiente: null})`): un código que no
      vincula no se reintenta. Si el canje devolvió `null` y, tras leer las membresías, no hay
-     ninguna útil en ese distribuidor, la pantalla sin acceso avisa "No pudimos vincular tu
-     código. Pide uno nuevo a tu distribuidor.". Si el canje no responde (red, `P0005`), el
-     pendiente se conserva y se reintenta en la siguiente carga. Si la sesión cambia mientras se
-     canjea, no se completa ni se limpia.
-  6. Con sesión, la pantalla de código canjea directamente (para sumar otro distribuidor).
+     ninguna útil en ese distribuidor, se avisa "No pudimos vincular tu código. Pide uno nuevo a
+     tu distribuidor." (en la pantalla sin acceso o, si entra a otra zona, como aviso
+     emergente). Si el canje no responde (red, `P0005`), el pendiente se conserva y se reintenta
+     en la siguiente carga. Si la sesión cambia mientras se canjea, no se completa ni se limpia, y
+     si la misma persona vuelve a ingresar, el canje se vuelve a intentar.
+  6. Con sesión, la pantalla de código canjea directamente (para sumar otro distribuidor). Se
+     llega a ella también con varias membresías y ninguna elegida.
+  7. **Canje al ingresar.** Si el registro responde "Ya existe una cuenta con este correo",
+     "Ingresar" lleva a la pantalla de ingreso con el código (y el `distribuidor_id` de la
+     invitación) por `extra` de go_router; nunca la contraseña. Antes de `signInWithPassword` el
+     control de acceso guarda ese código **solo en memoria**; si el ingreso no da sesión, lo
+     descarta (la pantalla lo conserva para el siguiente intento). En cuanto hay sesión, la carga
+     lo canjea **una vez** con `canjear_invitacion`, después del registro pendiente si lo hay y
+     antes de leer las membresías, aunque la pantalla de ingreso ya no esté montada. Es como un
+     registro pendiente sin datos de bodega: no llama `completar_datos_negocio` ni toca
+     `user_metadata`. Si el canje no responde, queda en la pantalla de error y "Reintentar" lo
+     vuelve a canjear; si se cierra la sesión, se descarta. Si devuelve `null` y no hay ninguna
+     membresía útil en ese distribuidor, se avisa "No pudimos vincular este código. Pide uno
+     nuevo a tu distribuidor." (en la pantalla sin acceso o, si entra a otra zona, como aviso
+     emergente).
 
   `user_metadata.registro_pendiente` es solo de la app móvil y lo escribe la propia persona: la
   BD sigue validando el código en `canjear_invitacion` y la bodega en `completar_datos_negocio`.
